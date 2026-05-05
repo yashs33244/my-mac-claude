@@ -55,28 +55,6 @@ Claude will automatically discover and load all skills from flat symlinks in `~/
 
 Auto-commit + push runs on every Claude Code Stop event via hook in `settings.json`.
 
-## Peer AI Agents Available
-
-These CLIs are installed and usable via `Bash` tool for delegation or parallel work.
-
-### Google Gemini CLI
-- Binary: `/opt/homebrew/bin/gemini`
-- Use for: code analysis, lint review, second opinions, large-context reads.
-- Invocation: `gemini -p "your prompt"` or pipe files in.
-- Runs in background with `run_in_background: true` for parallel tasks.
-
-### OpenAI Codex
-- Not currently installed. Check with `which codex` before attempting to use.
-
-### Orchestration pattern
-When a task is large or parallelizable, delegate subtasks to Gemini:
-```bash
-gemini -p "analyze X and return findings" &
-# do own work in parallel
-wait
-```
-Read results from the background task output file when done.
-
 ## License
 
 MIT

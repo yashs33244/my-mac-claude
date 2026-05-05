@@ -29,7 +29,7 @@
     "voice-mode": 8,
     "feedback-command": 8
   },
-  "promptQueueUseCount": 9,
+  "promptQueueUseCount": 10,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_shale_finch": true,
@@ -530,7 +530,8 @@
         "frame_duration_ms_p50": 0.36541699999997945,
         "frame_duration_ms_p95": 9.785271500065562,
         "frame_duration_ms_p99": 11.585221500013121
-      }
+      },
+      "hasCompletedProjectOnboarding": true
     },
     "/Users/tanishqsingh/.claude": {
       "allowedTools": [],
@@ -692,7 +693,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1777964675266
+      "timestamp": 1777975433477
     }
   },
   "closedIssuesLastChecked": 1777956002418,
@@ -713,5 +714,5 @@
       "lastUsedAt": 1777966680263
     }
   },
-  "remoteControlUpsellSeenCount": 2
+  "remoteControlUpsellSeenCount": 3
 }
