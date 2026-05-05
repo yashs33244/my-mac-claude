@@ -5,7 +5,7 @@
     "new-user-warmup": 9,
     "plan-mode-for-complex-tasks": 9,
     "terminal-setup": 13,
-    "color-when-multi-clauding": 4,
+    "color-when-multi-clauding": 14,
     "memory-command": 4,
     "theme-command": 4,
     "status-line": 4,
@@ -34,7 +34,7 @@
     "custom-commands": 12,
     "default-permission-mode-config": 12
   },
-  "promptQueueUseCount": 17,
+  "promptQueueUseCount": 23,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_ccr_bridge": true,

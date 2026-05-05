@@ -1,11 +1,11 @@
 {
-  "numStartups": 13,
+  "numStartups": 14,
   "hasSeenTasksHint": true,
   "tipsHistory": {
     "new-user-warmup": 9,
     "plan-mode-for-complex-tasks": 9,
     "terminal-setup": 13,
-    "color-when-multi-clauding": 4,
+    "color-when-multi-clauding": 14,
     "memory-command": 4,
     "theme-command": 4,
     "status-line": 4,
@@ -34,7 +34,7 @@
     "custom-commands": 12,
     "default-permission-mode-config": 12
   },
-  "promptQueueUseCount": 17,
+  "promptQueueUseCount": 25,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_ccr_bridge": true,
@@ -687,7 +687,7 @@
       "projectOnboardingSeenCount": 0,
       "hasClaudeMdExternalIncludesApproved": false,
       "hasClaudeMdExternalIncludesWarningShown": false,
-      "lastGracefulShutdown": true,
+      "lastGracefulShutdown": false,
       "lastCost": 4.746381650000002,
       "lastAPIDuration": 1464391,
       "lastAPIDurationWithoutRetries": 1461602,
@@ -801,7 +801,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1777980310393
+      "timestamp": 1778001129191
     }
   },
   "closedIssuesLastChecked": 1777956002418,
