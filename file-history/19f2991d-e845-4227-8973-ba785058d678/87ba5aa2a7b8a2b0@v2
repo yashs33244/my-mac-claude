@@ -1,0 +1,39 @@
+# Source repos (keep these out of the combined repo)
+gstack/
+/skills/.git
+/skills/.claude-plugin
+/skills/.gitignore
+/skills/README.md
+/skills/THIRD_PARTY_NOTICES.md
+/skills/spec
+/skills/template
+/skills/skills
+/superpowers/
+matt-skill/
+
+# But keep our merged skills subdirectories
+!/skills/anthropic
+!/skills/superpowers
+!/skills/mattpocock
+
+# Claude Code data files (not part of the skills repo)
+history.jsonl
+cache/
+backups/
+projects/
+sessions/
+statsig/
+shell-snapshots/
+plugins/
+settings.json
+.claude/
+
+# OS files
+.DS_Store
+*.swp
+*.swo
+
+# Node
+node_modules/
+package-lock.json
+yarn.lock
