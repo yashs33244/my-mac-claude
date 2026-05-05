@@ -1,0 +1,365 @@
+#!/usr/bin/env python3
+"""
+send_email.py — Send personalized outreach emails via Gmail SMTP.
+
+Usage:
+    python send_email.py --batch emails_batch.json --csv contacts.csv --delay 3
+    python send_email.py --batch emails_batch.json --csv contacts.csv --delay 3 --unsubscribe-footer "Reply 'unsubscribe' to opt out."
+    python send_email.py --dry-run --batch emails_batch.json --csv contacts.csv
+"""
+
+import sys
+import os
+import json
+import time
+import argparse
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from datetime import datetime
+
+# Allow sibling scripts to be imported directly
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import csv_manager
+import config
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def _build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Send outreach emails via Gmail SMTP",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    parser.add_argument("--batch", required=True, help="Path to emails_batch.json")
+    parser.add_argument("--csv", default="contacts.csv", help="Path to contacts.csv (default: contacts.csv)")
+    parser.add_argument("--delay", type=float, default=3.0, help="Seconds between sends (default: 3.0)")
+    parser.add_argument(
+        "--unsubscribe-footer",
+        default=None,
+        dest="unsubscribe_footer",
+        help="Text to append to every email body",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="dry_run",
+        help="Simulate sends, update CSV to sent, do NOT connect to SMTP",
+    )
+    return parser
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers
+# ---------------------------------------------------------------------------
+
+BATCH_REQUIRED_KEYS = {"row_id", "to", "subject", "body"}
+
+
+def load_and_validate_batch(batch_path: str) -> list:
+    """Load emails_batch.json and validate schema. Exits on error."""
+    if not os.path.exists(batch_path):
+        print(f"❌ Batch file not found: {batch_path}")
+        sys.exit(1)
+    try:
+        with open(batch_path, "r", encoding="utf-8") as f:
+            batch = json.load(f)
+    except json.JSONDecodeError as e:
+        print(f"❌ Invalid JSON in {batch_path}: {e}")
+        sys.exit(1)
+    if not isinstance(batch, list):
+        print(f"❌ {batch_path} must contain a JSON array at the top level.")
+        sys.exit(1)
+    for i, item in enumerate(batch):
+        missing = BATCH_REQUIRED_KEYS - set(item.keys())
+        if missing:
+            print(f"❌ Item {i} in batch is missing keys: {missing}")
+            sys.exit(1)
+    return batch
+
+
+def validate_csv_exists(csv_path: str) -> None:
+    if not os.path.exists(csv_path):
+        print(f"❌ CSV file not found: {csv_path}")
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# Startup checks and confirmation
+# ---------------------------------------------------------------------------
+
+def startup_checks(batch: list, csv_path: str, delay: float, dry_run: bool) -> None:
+    """Print pre-flight summary and wait for user confirmation."""
+    smtp_user = config.get("SMTP_USER", "")
+    n = len(batch)
+    est_minutes = (n * delay) / 60
+
+    print(f"\n{'[DRY RUN] ' if dry_run else ''}✓ Ready to send {n} emails from {smtp_user}. "
+          f"Delay: {delay}s. Est. time: {est_minutes:.1f} min\n")
+
+    if delay < 2:
+        print("⚠  Fast sending (< 2s delay) — Gmail may flag your account as spam")
+    elif delay <= 5:
+        print("✓  Safe sending speed")
+    else:
+        print(f"✓  Conservative speed — will take {est_minutes:.1f} minutes")
+
+    if not dry_run and sys.stdin.isatty():
+        print("\nPress Enter to start, or Ctrl+C to cancel...")
+        input()
+
+
+# ---------------------------------------------------------------------------
+# Auth error message
+# ---------------------------------------------------------------------------
+
+AUTH_ERROR_MSG = """
+❌ Gmail authentication failed.
+   Make sure you're using an App Password (not your regular Gmail password).
+   Steps:
+   1. Enable 2FA: https://myaccount.google.com/security
+   2. Create App Password: https://myaccount.google.com/apppasswords
+   3. Use the 16-character password in your .env SMTP_PASS
+"""
+
+
+# ---------------------------------------------------------------------------
+# Rich live table
+# ---------------------------------------------------------------------------
+
+def _status_markup(status: str) -> str:
+    mapping = {
+        "sent": "[green]✓ sent[/green]",
+        "failed": "[red]✗ failed[/red]",
+        "sending": "[yellow]⟳ sending...[/yellow]",
+        "pending": "[white]pending[/white]",
+    }
+    return mapping.get(status, status)
+
+
+def _build_table(rows_data: list) -> "Table":
+    """Build a rich Table from rows_data (list of dicts with display fields)."""
+    from rich.table import Table
+
+    table = Table(show_header=True, header_style="bold cyan", expand=False)
+    table.add_column("#", justify="right", style="dim", width=4)
+    table.add_column("Name", min_width=15)
+    table.add_column("Company", min_width=15)
+    table.add_column("Email", min_width=25)
+    table.add_column("Status", min_width=14)
+    table.add_column("Time", min_width=8)
+
+    # Show at most 20 rows (most recent)
+    visible = rows_data[-20:] if len(rows_data) > 20 else rows_data
+    for rd in visible:
+        table.add_row(
+            str(rd["idx"]),
+            rd["name"],
+            rd["company"],
+            rd["email"],
+            _status_markup(rd["status"]),
+            rd["time"],
+        )
+    return table
+
+
+def _contact_info(csv_path: str, to_email: str) -> tuple:
+    """Return (name, company) for an email address from CSV. Falls back to empty strings."""
+    contacts = csv_manager.read_contacts(csv_path)
+    for c in contacts:
+        if c.get("email", "").lower() == to_email.lower():
+            return c.get("name", ""), c.get("company", "")
+    return "", ""
+
+
+# ---------------------------------------------------------------------------
+# Core send loop
+# ---------------------------------------------------------------------------
+
+def run_send_loop(
+    batch: list,
+    csv_path: str,
+    delay: float,
+    unsubscribe_footer: str | None,
+    dry_run: bool,
+    smtp_user: str,
+    smtp_pass: str,
+) -> None:
+    try:
+        from rich.live import Live
+        from rich.console import Console
+        use_rich = True
+    except ImportError:
+        use_rich = False
+
+    sent_count = 0
+    failed_count = 0
+    start_time = time.time()
+    rows_data: list[dict] = []
+
+    # Pre-populate rows_data with all emails as 'pending'
+    for i, email_item in enumerate(batch, 1):
+        name, company = _contact_info(csv_path, email_item["to"])
+        rows_data.append({
+            "idx": i,
+            "name": name,
+            "company": company,
+            "email": email_item["to"],
+            "status": "pending",
+            "time": "",
+        })
+
+    def _do_send_loop(server):
+        nonlocal sent_count, failed_count
+
+        def _render():
+            return _build_table(rows_data)
+
+        ctx = Live(_render(), refresh_per_second=4, transient=False) if use_rich else None
+
+        try:
+            if ctx:
+                ctx.start()
+
+            for i, email_item in enumerate(batch):
+                row_id = email_item["row_id"]
+                to = email_item["to"]
+                subject = email_item["subject"]
+                body = email_item["body"]
+
+                if unsubscribe_footer:
+                    body = body + "\n\n" + unsubscribe_footer
+
+                # Update status to 'sending'
+                rows_data[i]["status"] = "sending"
+                if ctx:
+                    ctx.update(_render())
+
+                send_time = datetime.now().strftime("%H:%M:%S")
+                success = True
+
+                if dry_run:
+                    time.sleep(0.05)  # brief pause to simulate
+                else:
+                    try:
+                        msg = MIMEMultipart("alternative")
+                        msg["From"] = smtp_user
+                        msg["To"] = to
+                        msg["Subject"] = subject
+                        msg.attach(MIMEText(body, "plain"))
+                        server.sendmail(smtp_user, to, msg.as_string())
+                    except Exception as exc:
+                        success = False
+                        if ctx:
+                            ctx.stop()
+                        print(f"  ✗ Failed: {to} — {exc}")
+                        if ctx:
+                            ctx.start()
+
+                if success:
+                    csv_manager.update_status(csv_path, row_id, "sent")
+                    rows_data[i]["status"] = "sent"
+                    rows_data[i]["time"] = send_time
+                    sent_count += 1
+                else:
+                    csv_manager.update_status(csv_path, row_id, "failed")
+                    rows_data[i]["status"] = "failed"
+                    rows_data[i]["time"] = send_time
+                    failed_count += 1
+
+                if ctx:
+                    ctx.update(_render())
+
+                # Gmail daily limit warnings
+                if sent_count == 450:
+                    msg_text = "⚠  450 emails sent — approaching Gmail's 500/day limit."
+                    if ctx:
+                        ctx.stop()
+                    print(msg_text)
+                    if ctx:
+                        ctx.start()
+
+                if sent_count >= 500:
+                    msg_text = "⚠  Reached Gmail 500/day limit. Stopping."
+                    if ctx:
+                        ctx.stop()
+                    print(msg_text)
+                    break
+
+                # Delay between sends (skip after the last one)
+                if i < len(batch) - 1:
+                    time.sleep(delay)
+
+        finally:
+            if ctx:
+                ctx.stop()
+
+    if dry_run:
+        _do_send_loop(server=None)
+    else:
+        try:
+            with smtplib.SMTP("smtp.gmail.com", 587) as server:
+                server.ehlo()
+                server.starttls()
+                server.ehlo()
+                try:
+                    server.login(smtp_user, smtp_pass)
+                except smtplib.SMTPAuthenticationError:
+                    print(AUTH_ERROR_MSG)
+                    sys.exit(1)
+                _do_send_loop(server)
+        except smtplib.SMTPAuthenticationError:
+            print(AUTH_ERROR_MSG)
+            sys.exit(1)
+
+    # Summary
+    elapsed = (time.time() - start_time) / 60
+    print(f"\n✓ Sent: {sent_count}  ✗ Failed: {failed_count}  Total time: {elapsed:.1f} min\n")
+
+    # Export xlsx report
+    import xlsx_exporter
+    output = xlsx_exporter.export(csv_path)
+    print(f"📊 Report saved: {output}")
+
+
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    parser = _build_parser()
+    args = parser.parse_args()
+
+    # 1. Validate batch file
+    batch = load_and_validate_batch(args.batch)
+
+    # 2. Validate SMTP credentials (skip in dry-run)
+    if not args.dry_run:
+        config.validate_for_send()
+
+    smtp_user = config.get("SMTP_USER", "")
+    smtp_pass = config.get("SMTP_PASS", "")
+
+    # 3. Validate CSV
+    validate_csv_exists(args.csv)
+
+    # 4–7. Print summary + confirmation
+    startup_checks(batch, args.csv, args.delay, args.dry_run)
+
+    # Send
+    run_send_loop(
+        batch=batch,
+        csv_path=args.csv,
+        delay=args.delay,
+        unsubscribe_footer=args.unsubscribe_footer,
+        dry_run=args.dry_run,
+        smtp_user=smtp_user,
+        smtp_pass=smtp_pass,
+    )
+
+
+if __name__ == "__main__":
+    main()
