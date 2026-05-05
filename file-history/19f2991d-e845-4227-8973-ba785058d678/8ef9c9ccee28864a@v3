@@ -12,9 +12,9 @@
           },
           {
             "type": "command",
-            "command": "/Users/tanishqsingh/.claude/scripts/ingest-session.sh 2>/dev/null || echo '{\"systemMessage\": \"Ingest script failed — check ~/.claude/scripts/ingest-session.sh\"}'",
-            "timeout": 60,
-            "statusMessage": "Ingesting session to brain...",
+            "command": "[ -f /Users/tanishqsingh/.claude/secrets/.env ] && source /Users/tanishqsingh/.claude/secrets/.env && [ -n \"$GBRAIN_ACCESS_TOKEN\" ] && [ -n \"$GBRAIN_PUBLIC_URL\" ] && ~/.bun/bin/gbrain add \"Session ended $(date +'%Y-%m-%d %H:%M')\" --source claude-sessions 2>/dev/null && echo '{\"systemMessage\": \"Ingested to gbrain\"}' || echo '{\"systemMessage\": \"gbrain not configured yet — deploy to Render first\"}' 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "Ingesting to gbrain...",
             "async": true
           }
         ]

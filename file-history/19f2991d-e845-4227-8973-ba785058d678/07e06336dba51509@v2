@@ -1,0 +1,27 @@
+services:
+  # gbrain HTTP MCP server with OAuth + admin dashboard
+  - type: web
+    name: gbrain
+    runtime: node
+    buildCommand: npm install -g bun && bun install --frozen-lockfile
+    startCommand: bun run src/cli.ts serve --http --port $PORT --public-url $RENDER_EXTERNAL_URL
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: gbrain-db
+          property: connectionString
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GBRAIN_ENGINE
+        value: postgres
+      - key: NODE_ENV
+        value: production
+
+databases:
+  # Render-managed Postgres with pgvector
+  - name: gbrain-db
+    plan: free
+    postgresMajorVersion: 16

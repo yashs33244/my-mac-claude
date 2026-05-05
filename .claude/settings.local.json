@@ -7,7 +7,9 @@
       "Bash(git clone *)",
       "Bash(wait)",
       "Bash(mkdir -p /Users/tanishqsingh/.claude/gbrain)",
-      "Bash(cp -r /tmp/gbrain/* /Users/tanishqsingh/.claude/gbrain/)"
+      "Bash(cp -r /tmp/gbrain/* /Users/tanishqsingh/.claude/gbrain/)",
+      "Bash(curl -s -X POST https://api.render.com/v1/services -H 'Authorization: Bearer rnd_rr1YOvQyjlfz1ZW4P0sYLjVxaMMe' -H 'Content-Type: application/json' -d '{ *)",
+      "Bash(python3 -m json.tool)"
     ]
   }
 }
