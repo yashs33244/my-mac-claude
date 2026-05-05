@@ -23,7 +23,8 @@
       "Bash(/Users/tanishqsingh/.local/bin/gbrain doctor *)",
       "Bash(/Users/tanishqsingh/.claude/scripts/ingest-session.sh *)",
       "Read(//Users/tanishqsingh/Desktop/yash desktop files/ybrain/**)",
-      "Read(//Users/tanishqsingh/Desktop/yash desktop files/ybrain/claude-sessions/**)"
+      "Read(//Users/tanishqsingh/Desktop/yash desktop files/ybrain/claude-sessions/**)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")"
     ]
   }
 }
