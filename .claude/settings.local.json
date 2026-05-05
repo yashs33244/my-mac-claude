@@ -24,7 +24,11 @@
       "Bash(/Users/tanishqsingh/.claude/scripts/ingest-session.sh *)",
       "Read(//Users/tanishqsingh/Desktop/yash desktop files/ybrain/**)",
       "Read(//Users/tanishqsingh/Desktop/yash desktop files/ybrain/claude-sessions/**)",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d, indent=2\\)\\)\")",
+      "Bash(git -C ~/.claude add .claude-plugin/plugin.json)",
+      "Bash(git -C '~/.claude' commit -m 'fix: correct plugin.json skill paths to ../skills/ for Claude Code discovery *)",
+      "Bash(git -C ~/.claude push origin main)",
+      "Bash(git -C ~/.claude push claude-god-setup main)"
     ]
   }
 }
