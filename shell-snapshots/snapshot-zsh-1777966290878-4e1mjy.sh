@@ -63,7 +63,23 @@ VCS_INFO_formats () {
 }
 __arguments () {
 	# undefined
-	builtin autoload -XUz /usr/share/zsh/5.9/functions
+	builtin autoload -XUz
+}
+__bun_dynamic_comp () {
+	local comp="" 
+	for arg in scripts
+	do
+		local line
+		while read -r line
+		do
+			local name="$line" 
+			local desc="$line" 
+			name="${name%$'\t'*}" 
+			desc="${desc/*$'\t'/}" 
+			echo
+		done <<< "$arg"
+	done
+	return $comp
 }
 __git_prompt_git () {
 	GIT_OPTIONAL_LOCKS=0 command git "$@"
@@ -389,7 +405,7 @@ compdef () {
 }
 compdump () {
 	# undefined
-	builtin autoload -XUz
+	builtin autoload -XUz /usr/share/zsh/5.9/functions
 }
 compgen () {
 	local opts prefix suffix job OPTARG OPTIND ret=1 

@@ -21,7 +21,9 @@
       "Bash(/Users/tanishqsingh/.local/bin/gbrain init *)",
       "Bash(/Users/tanishqsingh/.local/bin/gbrain import *)",
       "Bash(/Users/tanishqsingh/.local/bin/gbrain doctor *)",
-      "Bash(/Users/tanishqsingh/.claude/scripts/ingest-session.sh *)"
+      "Bash(/Users/tanishqsingh/.claude/scripts/ingest-session.sh *)",
+      "Read(//Users/tanishqsingh/Desktop/yash desktop files/ybrain/**)",
+      "Read(//Users/tanishqsingh/Desktop/yash desktop files/ybrain/claude-sessions/**)"
     ]
   }
 }

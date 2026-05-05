@@ -1,0 +1,12 @@
+{
+  "name": "my-mac-claude",
+  "version": "1.0.0",
+  "description": "Combined Claude skills library: Anthropic examples, Superpowers workflows, and Matt Pocock engineering/productivity skills",
+  "author": {
+    "name": "Yash Singh",
+    "email": "yashs33244@gmail.com"
+  },
+  "homepage": "https://github.com/yashs33244/my-mac-claude",
+  "repository": "https://github.com/yashs33244/my-mac-claude",
+  "license": "MIT"
+}
