@@ -1,5 +1,5 @@
 {
-  "numStartups": 11,
+  "numStartups": 12,
   "hasSeenTasksHint": true,
   "tipsHistory": {
     "new-user-warmup": 9,
@@ -28,9 +28,13 @@
     "web-app": 8,
     "remote-control": 8,
     "voice-mode": 8,
-    "feedback-command": 8
+    "feedback-command": 8,
+    "permissions": 11,
+    "rename-conversation": 12,
+    "custom-commands": 12,
+    "default-permission-mode-config": 12
   },
-  "promptQueueUseCount": 12,
+  "promptQueueUseCount": 16,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_shale_finch": true,
@@ -671,6 +675,18 @@
       },
       "lastFpsAverage": 0.03,
       "lastFpsLow1Pct": 138.58
+    },
+    "/Users/tanishqsingh/Desktop/yash desktop files/viewr/outreach": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": true,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "lastGracefulShutdown": false
     }
   },
   "opusProMigrationComplete": true,
@@ -725,7 +741,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1777975433477
+      "timestamp": 1777980310393
     }
   },
   "closedIssuesLastChecked": 1777956002418,
@@ -744,7 +760,24 @@
     "init": {
       "usageCount": 1,
       "lastUsedAt": 1777966680263
+    },
+    "token-efficient-coding": {
+      "usageCount": 1,
+      "lastUsedAt": 1777976145361
+    },
+    "token-efficient-rules": {
+      "usageCount": 2,
+      "lastUsedAt": 1777980312850
+    },
+    "grill-me": {
+      "usageCount": 1,
+      "lastUsedAt": 1777980323537
+    },
+    "plan-eng-review": {
+      "usageCount": 1,
+      "lastUsedAt": 1777981100593
     }
   },
-  "remoteControlUpsellSeenCount": 3
+  "remoteControlUpsellSeenCount": 3,
+  "lastPlanModeUse": 1777981760533
 }
