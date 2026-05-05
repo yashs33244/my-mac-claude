@@ -112,14 +112,36 @@ if [ -x "$GBRAIN_CLI" ]; then
   "$GBRAIN_CLI" add "$(cat "$NOTE_FILE")" --source claude-sessions 2>/dev/null || true
 fi
 
-# Sync vault to yash-brain GitHub repo
+# Sync all brain sources into vault before pushing to GitHub
 BRAIN_REPO_DIR="$VAULT_DIR"
 if [ -d "$BRAIN_REPO_DIR/.git" ]; then
+  # 1. Mirror claude project memory files → vault/memory/
+  mkdir -p "$BRAIN_REPO_DIR/memory"
+  find "$HOME/.claude/projects" -path "*/memory/*.md" 2>/dev/null | while read -r mf; do
+    proj=$(basename "$(dirname "$(dirname "$mf")")")
+    dest="$BRAIN_REPO_DIR/memory/${proj}__$(basename "$mf")"
+    cp "$mf" "$dest" 2>/dev/null || true
+  done
+
+  # 2. Mirror gstack analytics + learnings → vault/gstack/
+  if [ -d "$HOME/.gstack/analytics" ]; then
+    mkdir -p "$BRAIN_REPO_DIR/gstack/analytics"
+    cp "$HOME/.gstack/analytics/"*.jsonl "$BRAIN_REPO_DIR/gstack/analytics/" 2>/dev/null || true
+  fi
+  if [ -d "$HOME/.gstack/projects" ]; then
+    mkdir -p "$BRAIN_REPO_DIR/gstack/projects"
+    find "$HOME/.gstack/projects" -name "learnings.jsonl" 2>/dev/null | while read -r lf; do
+      proj=$(basename "$(dirname "$lf")")
+      cp "$lf" "$BRAIN_REPO_DIR/gstack/projects/${proj}-learnings.jsonl" 2>/dev/null || true
+    done
+  fi
+
+  # 3. Commit everything and push to yashs33244/yash-brain
   (
     cd "$BRAIN_REPO_DIR"
     git add -A
     if ! git diff --cached --quiet; then
-      git commit -m "brain: session ${SESSION_ID:0:8} — $(date +'%Y-%m-%d %H:%M')"
+      git commit -m "brain: sync ${SESSION_ID:0:8} — $(date +'%Y-%m-%d %H:%M')"
       git push origin main 2>/dev/null && true
     fi
   ) 2>/dev/null || true
