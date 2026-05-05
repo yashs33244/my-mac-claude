@@ -22,9 +22,12 @@
     "image-paste": 7,
     "custom-agents": 7,
     "agent-flag": 7,
-    "desktop-app": 8
+    "desktop-app": 8,
+    "desktop-shortcut": 8,
+    "web-app": 8
   },
-  "promptQueueUseCount": 2,
+  "promptQueueUseCount": 4,
+  "btwUseCount": 1,
   "cachedGrowthBookFeatures": {
     "tengu_mcp_elicitation": true,
     "tengu_surreal_dali": true,
@@ -626,7 +629,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1777960108285
+      "timestamp": 1777964675266
     }
   },
   "closedIssuesLastChecked": 1777956002418,
@@ -636,5 +639,12 @@
   ],
   "officialMarketplaceAutoInstallAttempted": true,
   "officialMarketplaceAutoInstalled": true,
-  "opus47LaunchSeenCount": 1
+  "opus47LaunchSeenCount": 1,
+  "skillUsage": {
+    "update-config": {
+      "usageCount": 1,
+      "lastUsedAt": 1777961765261
+    }
+  },
+  "remoteControlUpsellSeenCount": 2
 }
