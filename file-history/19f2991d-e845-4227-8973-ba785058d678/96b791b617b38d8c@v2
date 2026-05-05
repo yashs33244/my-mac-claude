@@ -7,7 +7,7 @@ set -euo pipefail
 VAULT_DIR="/Users/tanishqsingh/Desktop/yash desktop files/ybrain"
 SESSIONS_DIR="$HOME/.claude/projects/-Users-tanishqsingh--claude"
 SESSIONS_OUTPUT_DIR="$VAULT_DIR/claude-sessions"
-GBRAIN_CLI="$HOME/.local/bin/gbrain"
+GBRAIN_CLI="$HOME/.bun/bin/gbrain"
 SECRETS_FILE="$HOME/.claude/secrets/.env"
 
 # Load secrets if available

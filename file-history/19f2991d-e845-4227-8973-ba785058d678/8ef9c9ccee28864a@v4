@@ -1,0 +1,24 @@
+{
+  "effortLevel": "medium",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd /Users/tanishqsingh/.claude && git add -A && if ! git diff --cached --quiet; then git commit -m \"auto: sync claude config $(date +'%Y-%m-%d %H:%M')\" && git push origin main 2>/dev/null && git push claude-god-setup main 2>/dev/null && echo '{\"systemMessage\": \"Changes committed and pushed to claude-god-setup\"}'; else echo '{\"systemMessage\": \"No changes to commit\"}'; fi",
+            "timeout": 60,
+            "statusMessage": "Syncing ~/.claude to GitHub..."
+          },
+          {
+            "type": "command",
+            "command": "/Users/tanishqsingh/.claude/scripts/ingest-session.sh 2>/dev/null || echo '{\"systemMessage\": \"Ingest script failed — check ~/.claude/scripts/ingest-session.sh\"}'",
+            "timeout": 60,
+            "statusMessage": "Ingesting session to brain...",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}
