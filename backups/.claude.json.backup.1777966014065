@@ -24,9 +24,11 @@
     "agent-flag": 7,
     "desktop-app": 8,
     "desktop-shortcut": 8,
-    "web-app": 8
+    "web-app": 8,
+    "remote-control": 8
   },
-  "promptQueueUseCount": 3,
+  "promptQueueUseCount": 5,
+  "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_mcp_elicitation": true,
     "tengu_surreal_dali": true,
@@ -628,7 +630,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1777960108285
+      "timestamp": 1777964675266
     }
   },
   "closedIssuesLastChecked": 1777956002418,
