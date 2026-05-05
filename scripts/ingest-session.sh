@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Ingest the most recent Claude session into local Obsidian vault + remote gbrain on Render.
+# Ingest the most recent Claude session into local Obsidian vault + sync to yash-brain on GitHub.
 # Called from the Stop hook in ~/.claude/settings.json after every Claude response.
 
 set -euo pipefail
@@ -112,12 +112,17 @@ if [ -x "$GBRAIN_CLI" ]; then
   "$GBRAIN_CLI" add "$(cat "$NOTE_FILE")" --source claude-sessions 2>/dev/null || true
 fi
 
-# Ingest into remote gbrain on Render if configured
-if [ -n "${GBRAIN_ACCESS_TOKEN:-}" ] && [ -n "${GBRAIN_PUBLIC_URL:-}" ]; then
-  "$GBRAIN_CLI" add "$(cat "$NOTE_FILE")" \
-    --source claude-sessions \
-    --brain "$GBRAIN_PUBLIC_URL" \
-    --token "$GBRAIN_ACCESS_TOKEN" 2>/dev/null || true
+# Sync vault to yash-brain GitHub repo
+BRAIN_REPO_DIR="$VAULT_DIR"
+if [ -d "$BRAIN_REPO_DIR/.git" ]; then
+  (
+    cd "$BRAIN_REPO_DIR"
+    git add -A
+    if ! git diff --cached --quiet; then
+      git commit -m "brain: session ${SESSION_ID:0:8} — $(date +'%Y-%m-%d %H:%M')"
+      git push origin main 2>/dev/null && true
+    fi
+  ) 2>/dev/null || true
 fi
 
 echo "{\"systemMessage\": \"Session ingested → $NOTE_FILE\"}"
