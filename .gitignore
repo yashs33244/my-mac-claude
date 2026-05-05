@@ -16,6 +16,9 @@ matt-skill/
 # The plugin structure is tracked in .claude-plugin/ instead.
 plugins/
 
+# Secrets — NEVER commit
+secrets/
+
 # Truly temporary / ephemeral files
 paste-cache/
 *.swp

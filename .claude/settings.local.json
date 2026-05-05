@@ -2,7 +2,12 @@
   "permissions": {
     "allow": [
       "Bash(git -C /Users/tanishqsingh/.claude checkout -- .gitignore CLAUDE.md README.md)",
-      "Bash(git -C /Users/tanishqsingh/.claude status)"
+      "Bash(git -C /Users/tanishqsingh/.claude status)",
+      "Bash(mkdir -p /Users/tanishqsingh/.claude/projects/-Users-tanishqsingh--claude/memory)",
+      "Bash(git clone *)",
+      "Bash(wait)",
+      "Bash(mkdir -p /Users/tanishqsingh/.claude/gbrain)",
+      "Bash(cp -r /tmp/gbrain/* /Users/tanishqsingh/.claude/gbrain/)"
     ]
   }
 }

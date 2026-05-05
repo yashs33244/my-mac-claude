@@ -1,5 +1,17 @@
 # my-mac-claude — Combined Guidelines
 
+## Mandatory Workflow Gates
+
+**Before starting any new project or implementing any new feature:**
+1. Run `/grill-me` — interrogate assumptions and requirements
+2. Run `/plan-eng-review` — review the engineering plan before writing code
+
+No exceptions. These gates apply to every implementation request.
+
+## Who You Are Working With
+
+Yash Singh — AI-fueled full-stack engineer (SDE at Binocs, Bangalore). Final-year B.Tech CS at IIIT Una, graduating July 2026. See full profile in memory.
+
 ## If You Are an AI Agent
 
 This is a personal combined skills library for macOS. When working with this repo:
@@ -8,27 +20,40 @@ This is a personal combined skills library for macOS. When working with this rep
    - `skills/anthropic/` — Anthropic example skills (document processing, design, testing)
    - `skills/superpowers/` — Core development workflows (TDD, debugging, collaboration)
    - `skills/mattpocock/` — Matt Pocock's engineering & productivity skills
+   - `skills/gstack/` — gstack browser-testing and team workflow skills
+   - `skills/token-efficient/` — Token-efficient response profiles
+   - `skills/obsidian-second-brain/` — Obsidian vault AI-first second brain (31 commands)
 
 2. Every skill must have a `SKILL.md` file in its directory.
 
-3. The top-level `.claude-plugin/plugin.json` is the main manifest. Keep it in sync when adding/removing skills.
+3. Flat symlinks at `skills/<name>` enable auto-discovery by Claude Code.
 
-4. The `.claude-plugin/marketplace.json` organizes skills into logical groups for the marketplace.
+4. The top-level `.claude-plugin/plugin.json` is the main manifest. Keep it in sync when adding/removing skills.
+
+5. The `.claude-plugin/marketplace.json` organizes skills into logical groups for the marketplace.
 
 ## macOS Setup
 
 ```bash
-git clone https://github.com/yashs33244/my-mac-claude.git ~/.claude
+git clone https://github.com/yashs33244/claude-god-setup.git ~/.claude
 ```
 
-Claude will automatically discover and load all skills from `~/.claude/.claude-plugin/plugin.json`.
+Claude will automatically discover and load all skills from flat symlinks in `~/.claude/skills/`.
 
 ## Adding New Skills
 
 1. Create a new directory under the appropriate `skills/` subfolder
 2. Add a `SKILL.md` file following the standard format
-3. Register the skill path in both `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-4. Update `README.md` with a one-line description
+3. Create a flat symlink: `ln -sfn skills/<collection>/<skill-name> skills/<skill-name>`
+4. Register the skill path in both `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+5. Update `README.md` with a one-line description
+
+## Remotes
+
+- `origin` → https://github.com/yashs33244/my-mac-claude (skills repo)
+- `claude-god-setup` → https://github.com/yashs33244/claude-god-setup (full environment backup)
+
+Auto-commit + push runs on every Claude Code Stop event via hook in `settings.json`.
 
 ## License
 

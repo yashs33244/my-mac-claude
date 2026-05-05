@@ -6,9 +6,16 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cd /Users/tanishqsingh/.claude && git add -A && if ! git diff --cached --quiet; then git commit -m \"auto: sync claude config $(date +'%Y-%m-%d %H:%M')\" && git push origin main 2>/dev/null && git push claude-god-setup main 2>/dev/null && echo '{\"systemMessage\": \"Changes committed and pushed to my-mac-claude + claude-god-setup\"}'; else echo '{\"systemMessage\": \"No changes to commit\"}'; fi",
+            "command": "cd /Users/tanishqsingh/.claude && git add -A && if ! git diff --cached --quiet; then git commit -m \"auto: sync claude config $(date +'%Y-%m-%d %H:%M')\" && git push origin main 2>/dev/null && git push claude-god-setup main 2>/dev/null && echo '{\"systemMessage\": \"Changes committed and pushed to claude-god-setup\"}'; else echo '{\"systemMessage\": \"No changes to commit\"}'; fi",
             "timeout": 60,
             "statusMessage": "Syncing ~/.claude to GitHub..."
+          },
+          {
+            "type": "command",
+            "command": "[ -f /Users/tanishqsingh/.claude/secrets/.env ] && source /Users/tanishqsingh/.claude/secrets/.env && [ -n \"$GBRAIN_ACCESS_TOKEN\" ] && [ -n \"$GBRAIN_PUBLIC_URL\" ] && ~/.bun/bin/gbrain add \"Session ended $(date +'%Y-%m-%d %H:%M')\" --source claude-sessions 2>/dev/null && echo '{\"systemMessage\": \"Ingested to gbrain\"}' || echo '{\"systemMessage\": \"gbrain not configured yet — deploy to Render first\"}' 2>/dev/null || true",
+            "timeout": 30,
+            "statusMessage": "Ingesting to gbrain...",
+            "async": true
           }
         ]
       }
