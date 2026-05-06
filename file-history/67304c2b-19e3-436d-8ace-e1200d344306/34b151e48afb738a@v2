@@ -1,0 +1,901 @@
+# AI Email Outreach Platform — Backend Specification
+
+> **Version:** 1.0 (v1 scope)
+> **Stack:** Python 3.12 · FastAPI · PostgreSQL · Poetry
+
+---
+
+## Table of Contents
+
+1. [Tech Stack & Rationale](#1-tech-stack--rationale)
+2. [Project Structure](#2-project-structure)
+3. [Poetry Setup & Dependency Files](#3-poetry-setup--dependency-files)
+4. [Environment Variables](#4-environment-variables)
+5. [Design Principles](#5-design-principles)
+6. [Services Architecture](#6-services-architecture)
+7. [Database Schema](#7-database-schema)
+8. [LLM Provider Service (Centralized)](#8-llm-provider-service-centralized)
+9. [Background Tasks Architecture](#9-background-tasks-architecture)
+10. [Error Response Standard](#10-error-response-standard)
+11. [Build & Run Instructions](#11-build--run-instructions)
+
+> **API Contracts:** See [`contracts.md`](./contracts.md)
+
+---
+
+## 1. Tech Stack & Rationale
+
+| Layer | Choice | Why |
+|---|---|---|
+| Language | Python 3.12 | Best LLM/AI library ecosystem |
+| Web Framework | FastAPI | Async-first, auto OpenAPI docs, Pydantic validation |
+| ORM | SQLAlchemy 2.0 (async) | Type-safe, async sessions, migration support |
+| Migrations | Alembic | Industry standard with SQLAlchemy |
+| Database | PostgreSQL 15 | JSONB for config blobs, reliable, relational |
+| Background Jobs | FastAPI BackgroundTasks | In-process async tasks — no broker needed for v1 |
+| Package Manager | Poetry | Deterministic lockfile, dev/prod split |
+| HTTP Client | httpx | Async, used for LLM & external API calls |
+| Validation | Pydantic v2 | Schema validation, structured LLM output parsing |
+| Auth | python-jose + passlib | JWT tokens |
+| Testing | pytest + pytest-asyncio | Async test support |
+
+**v1 intentional omissions:** Redis, ARQ, BullMQ, Celery. A job broker adds operational overhead that isn't justified until campaign volumes exceed single-process capacity. FastAPI `BackgroundTasks` runs in the same process, keeps the stack boring, and is trivially swappable for ARQ in v2 behind the same service interface.
+
+---
+
+## 2. Project Structure
+
+```
+outreach-backend/
+├── pyproject.toml
+├── poetry.lock
+├── requirements.txt            # Exported prod deps (for Docker)
+├── requirements-dev.txt
+├── .env.example
+├── alembic.ini
+├── alembic/
+│   └── versions/
+├── app/
+│   ├── main.py                 # FastAPI app entry point
+│   ├── config.py               # Settings (pydantic-settings)
+│   ├── deps.py                 # Shared FastAPI dependencies (DB session, auth)
+│   │
+│   ├── api/                    # Route handlers — thin controllers only
+│   │   ├── __init__.py
+│   │   └── v1/
+│   │       ├── __init__.py
+│   │       ├── auth.py
+│   │       ├── campaigns.py
+│   │       ├── chat.py
+│   │       ├── outreach.py
+│   │       └── email_jobs.py
+│   │
+│   ├── services/               # Business logic — one class per domain (SRP)
+│   │   ├── __init__.py
+│   │   ├── campaign_service.py
+│   │   ├── chat_service.py
+│   │   ├── llm_service.py      # Centralized LLM provider (strategy pattern)
+│   │   ├── processor_service.py
+│   │   ├── email_service.py
+│   │   ├── apollo_service.py
+│   │   ├── scraper_service.py
+│   │   └── google_drive_service.py
+│   │
+│   ├── interfaces/             # Abstract base classes (DIP, ISP)
+│   │   ├── __init__.py
+│   │   ├── llm_provider.py     # AbstractLLMProvider
+│   │   ├── email_provider.py   # AbstractEmailProvider
+│   │   └── contact_source.py  # AbstractContactSource
+│   │
+│   ├── providers/              # Concrete implementations (OCP — add without modifying)
+│   │   ├── __init__.py
+│   │   ├── llm/
+│   │   │   ├── openai_provider.py
+│   │   │   ├── anthropic_provider.py
+│   │   │   └── gemini_provider.py
+│   │   ├── email/
+│   │   │   └── gmail_provider.py
+│   │   └── contacts/
+│   │       ├── apollo_provider.py
+│   │       └── scraper_provider.py
+│   │
+│   ├── models/                 # SQLAlchemy ORM models
+│   │   ├── __init__.py
+│   │   ├── user.py
+│   │   ├── campaign.py
+│   │   ├── campaign_session.py
+│   │   ├── contact.py
+│   │   ├── email_job.py
+│   │   └── setting.py
+│   │
+│   ├── schemas/                # Pydantic request/response schemas
+│   │   ├── __init__.py
+│   │   ├── campaign.py
+│   │   ├── chat.py
+│   │   ├── outreach.py
+│   │   └── email_job.py
+│   │
+│   ├── repositories/           # DB access layer (Repository pattern)
+│   │   ├── __init__.py
+│   │   ├── base.py             # AsyncBaseRepository[T]
+│   │   ├── campaign_repository.py
+│   │   ├── contact_repository.py
+│   │   ├── email_job_repository.py
+│   │   └── user_repository.py
+│   │
+│   ├── tasks/                  # FastAPI BackgroundTasks handlers
+│   │   ├── __init__.py
+│   │   ├── processor_task.py   # Research + email draft generation
+│   │   └── email_task.py       # Email sending (rate-limited in-process)
+│   │
+│   ├── prompts/                # LLM prompt templates
+│   │   ├── chat_base.txt
+│   │   ├── extraction.txt
+│   │   ├── generation_job.txt
+│   │   ├── generation_b2b.txt
+│   │   ├── generation_hiring.txt
+│   │   └── generation_pr.txt
+│   │
+│   └── core/
+│       ├── security.py         # JWT, hashing
+│       ├── sse.py              # SSE helper (in-process asyncio.Queue)
+│       └── exceptions.py       # Custom exception classes
+│
+└── tests/
+    ├── conftest.py
+    ├── test_campaigns.py
+    ├── test_chat.py
+    └── test_llm_service.py
+```
+
+---
+
+## 3. Poetry Setup & Dependency Files
+
+### `pyproject.toml`
+
+```toml
+[tool.poetry]
+name = "outreach-backend"
+version = "0.1.0"
+description = "AI Email Outreach Platform API"
+authors = ["Your Name <you@example.com>"]
+python = "^3.12"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.111.0"
+uvicorn = { version = "^0.29.0", extras = ["standard"] }
+sqlalchemy = { version = "^2.0.30", extras = ["asyncio"] }
+asyncpg = "^0.29.0"
+alembic = "^1.13.1"
+pydantic = "^2.7.1"
+pydantic-settings = "^2.2.1"
+httpx = "^0.27.0"
+python-jose = { version = "^3.3.0", extras = ["cryptography"] }
+passlib = { version = "^1.7.4", extras = ["bcrypt"] }
+python-multipart = "^0.0.9"
+openai = "^1.30.0"
+anthropic = "^0.28.0"
+google-api-python-client = "^2.131.0"
+google-auth-httplib2 = "^0.2.0"
+google-auth-oauthlib = "^1.2.0"
+tenacity = "^8.3.0"
+structlog = "^24.1.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.6"
+pytest-cov = "^5.0.0"
+httpx = "^0.27.0"
+factory-boy = "^3.3.0"
+faker = "^25.0.0"
+ruff = "^0.4.4"
+mypy = "^1.10.0"
+pre-commit = "^3.7.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "UP"]
+```
+
+### Export for Docker
+
+```bash
+poetry export -f requirements.txt --output requirements.txt --without-hashes --only main
+poetry export -f requirements.txt --output requirements-dev.txt --without-hashes
+```
+
+> Never install dev deps in the production Docker image.
+
+---
+
+## 4. Environment Variables
+
+`.env.example`:
+
+```bash
+# ── App ──────────────────────────────────────────────
+APP_ENV=development
+SECRET_KEY=changeme-use-openssl-rand
+ACCESS_TOKEN_EXPIRE_MINUTES=60
+
+# ── Database ─────────────────────────────────────────
+DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/outreach_db
+
+# ── LLM Providers ────────────────────────────────────
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_GEMINI_API_KEY=...
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=gpt-4o
+
+# ── Apollo.io ────────────────────────────────────────
+APOLLO_API_KEY=...
+
+# ── Google OAuth ─────────────────────────────────────
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
+
+# ── Email (v1: Gmail only) ───────────────────────────
+GMAIL_DAILY_SEND_LIMIT=450
+EMAIL_SEND_RATE_PER_SECOND=1
+
+# ── Processor ────────────────────────────────────────
+PROCESSOR_MAX_CONCURRENCY=20
+```
+
+---
+
+## 5. Design Principles
+
+This codebase enforces SOLID throughout. Each layer has one job; new providers never require touching existing code.
+
+### Single Responsibility (SRP)
+
+Every class owns exactly one domain concern:
+
+```
+CampaignService   → campaign lifecycle only
+ChatService       → wizard conversation only
+LLMService        → provider routing + retry only
+ProcessorService  → research + draft orchestration only
+EmailService      → send + tracking only
+```
+
+Route handlers in `api/v1/` are thin controllers: parse request → call service → return response. No business logic in routes.
+
+### Open / Closed (OCP)
+
+New LLM providers, email providers, and contact sources are added by creating a new file under `providers/` implementing the relevant abstract interface. Nothing in `services/` or `api/` changes.
+
+```
+AbstractLLMProvider
+  ├── OpenAIProvider
+  ├── AnthropicProvider
+  └── GeminiProvider          ← add new provider here, nowhere else
+
+AbstractEmailProvider
+  └── GmailProvider           ← SendGrid in v2: new file, no edits
+
+AbstractContactSource
+  ├── ApolloProvider
+  └── ScraperProvider
+```
+
+### Liskov Substitution (LSP)
+
+All providers implement the full interface contract. `LLMService` accepts `AbstractLLMProvider` — any concrete provider can be injected without changing the call site.
+
+### Interface Segregation (ISP)
+
+Interfaces are narrow and focused:
+
+```python
+# app/interfaces/llm_provider.py
+class AbstractLLMProvider(ABC):
+    @abstractmethod
+    async def chat_completion(self, messages: list, system_prompt: str) -> str: ...
+
+    @abstractmethod
+    async def structured_completion(self, messages: list, system_prompt: str) -> dict: ...
+```
+
+Contact sources and email providers each have their own minimal interface — no god interfaces.
+
+### Dependency Inversion (DIP)
+
+Services depend on abstractions. Concrete implementations are injected via FastAPI `Depends()`:
+
+```python
+# app/deps.py
+async def get_llm_service(settings: Settings = Depends(get_settings)) -> LLMService:
+    provider = ProviderFactory.create(settings.DEFAULT_LLM_PROVIDER)
+    return LLMService(provider=provider)
+```
+
+### Repository Pattern
+
+All DB access goes through repositories. Services never call SQLAlchemy directly:
+
+```python
+# app/repositories/base.py
+class AsyncBaseRepository(Generic[T]):
+    def __init__(self, session: AsyncSession, model: type[T]) -> None:
+        self.session = session
+        self.model = model
+
+    async def get_by_id(self, id: UUID) -> T | None:
+        result = await self.session.execute(select(self.model).where(self.model.id == id))
+        return result.scalar_one_or_none()
+
+    async def create(self, obj: T) -> T:
+        self.session.add(obj)
+        await self.session.flush()
+        await self.session.refresh(obj)
+        return obj
+
+    async def update(self, obj: T) -> T:
+        await self.session.flush()
+        await self.session.refresh(obj)
+        return obj
+
+    async def bulk_create(self, objs: list[T]) -> list[T]:
+        self.session.add_all(objs)
+        await self.session.flush()
+        return objs
+```
+
+### Async All the Way Down
+
+No synchronous blocking anywhere in the request path or background tasks:
+
+- DB: `AsyncSession` + `asyncpg` driver — all queries are `await session.execute(...)`
+- HTTP: `httpx.AsyncClient` for all LLM and external API calls
+- Background tasks: `async def` task functions registered with FastAPI `BackgroundTasks`
+- File I/O (if needed): `aiofiles`
+- Concurrency in processor: `asyncio.gather()` with semaphore for bounded parallelism
+
+```python
+# Correct — always this pattern
+async def get_campaign(self, campaign_id: UUID, user_id: UUID) -> Campaign:
+    return await self.campaign_repo.get_by_id_for_user(campaign_id, user_id)
+
+# Never this
+def get_campaign(self, campaign_id: UUID, user_id: UUID) -> Campaign:
+    return db.query(Campaign).filter(...).first()
+```
+
+---
+
+## 6. Services Architecture
+
+```
+CampaignService
+  ├── async create_campaign(user_id, params) → Campaign
+  ├── async get_campaign(campaign_id, user_id) → Campaign
+  └── async list_campaigns(user_id) → list[Campaign]
+
+ChatService
+  ├── async process_message(session_id, message, user) → AsyncGenerator[str, None]
+  ├── async save_session(session_id, extracted_params) → CampaignSession
+  └── async get_session(session_id) → CampaignSession
+
+LLMService  ← CENTRALIZED. Used by ChatService AND ProcessorService
+  ├── async chat_completion(messages, provider, model, system_prompt) → str
+  ├── async generate_email(contact, campaign_session, user_profile) → EmailDraft
+  └── async extract_params(raw_message, campaign_type) → ExtractedParams
+
+ProcessorService  ← runs inside BackgroundTask
+  ├── async run_research(campaign_id) → list[Contact]
+  ├── async dispatch_agents(contacts, campaign_session, progress_cb) → None
+  └── async generate_all_drafts(contacts, campaign_session) → list[EmailJob]
+
+ApolloService
+  └── async search_contacts(companies, geography, role_title) → list[Contact]
+
+ScraperService
+  └── async scrape_contacts(companies, geography) → list[Contact]
+
+GoogleDriveService
+  ├── async get_resume_text(user_id) → str
+  └── async fetch_file(file_id, oauth_token) → bytes
+
+EmailService
+  ├── async send_via_gmail(email_job_id) → SendResult
+  ├── async check_daily_limit(user_id) → bool
+  └── async update_send_stats(email_job_id, event) → None
+```
+
+---
+
+## 7. Database Schema
+
+### Table: `users`
+
+```sql
+CREATE TABLE users (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email           TEXT NOT NULL UNIQUE,
+    hashed_password TEXT,
+    google_id       TEXT UNIQUE,
+    gmail_oauth_token JSONB,                       -- {access_token, refresh_token, expiry}
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+### Table: `user_profiles`
+
+```sql
+CREATE TABLE user_profiles (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    linkedin_url    TEXT,
+    twitter_url     TEXT,
+    portfolio_url   TEXT,
+    resume_url      TEXT,
+    experience_level TEXT,                         -- fresher | junior | mid | senior | lead
+    bio             TEXT,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_user_profiles_user_id ON user_profiles(user_id);
+```
+
+### Table: `settings`
+
+```sql
+CREATE TABLE settings (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    email_source    TEXT NOT NULL DEFAULT 'apollo',
+    llm_provider    TEXT NOT NULL DEFAULT 'openai',
+    llm_model       TEXT NOT NULL DEFAULT 'gpt-4o',
+    email_provider  TEXT NOT NULL DEFAULT 'gmail',
+    sendgrid_api_key TEXT,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_settings_user_id ON settings(user_id);
+```
+
+### Table: `campaigns`
+
+```sql
+CREATE TABLE campaigns (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type            TEXT NOT NULL,              -- job_outreach | b2b | hiring | pr | fundraising | partnership
+    status          TEXT NOT NULL DEFAULT 'draft',  -- draft | processing | ready | sending | done | failed
+    config_json     JSONB NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_campaigns_user_id ON campaigns(user_id);
+CREATE INDEX idx_campaigns_status ON campaigns(status);
+```
+
+**`config_json` shape:**
+```json
+{
+  "intent": "I want to get a backend engineering role at Series B startups",
+  "target_companies": ["Stripe", "Linear", "Vercel"],
+  "geography": ["US", "India"],
+  "email_source": "apollo",
+  "llm_provider": "openai",
+  "llm_model": "gpt-4o"
+}
+```
+
+### Table: `campaign_sessions`
+
+```sql
+CREATE TABLE campaign_sessions (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_id     UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    chat_history    JSONB NOT NULL DEFAULT '[]',
+    extracted_params JSONB NOT NULL DEFAULT '{}',
+    status          TEXT NOT NULL DEFAULT 'active', -- active | completed
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX idx_campaign_sessions_campaign ON campaign_sessions(campaign_id);
+```
+
+**`extracted_params` shape:**
+```json
+{
+  "geography": ["United States"],
+  "target_strategy": "HR managers at Series A-B SaaS companies",
+  "purpose": "Job outreach for senior backend role",
+  "email_source": "apollo",
+  "llm_provider": "openai",
+  "experience_level": "senior",
+  "resume_gdrive_url": "https://drive.google.com/..."
+}
+```
+
+### Table: `contacts`
+
+```sql
+CREATE TABLE contacts (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_id     UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    company         TEXT NOT NULL,
+    person_name     TEXT,
+    email           TEXT NOT NULL,
+    title           TEXT,
+    source          TEXT NOT NULL DEFAULT 'apollo',  -- apollo | scrape
+    geography       TEXT,
+    bounce_risk     BOOLEAN NOT NULL DEFAULT FALSE,
+    verified        BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_contacts_campaign_id ON contacts(campaign_id);
+CREATE INDEX idx_contacts_source ON contacts(source);
+```
+
+### Table: `email_jobs`
+
+```sql
+CREATE TABLE email_jobs (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    campaign_id     UUID NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+    contact_id      UUID NOT NULL REFERENCES contacts(id) ON DELETE CASCADE,
+    user_id         UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subject         TEXT,
+    body            TEXT,
+    attachment_url  TEXT,
+    draft_status    TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
+    status          TEXT NOT NULL DEFAULT 'draft',   -- draft | queued | sent | opened | replied | bounced | failed
+    provider        TEXT NOT NULL DEFAULT 'gmail',
+    gmail_message_id TEXT,
+    scheduled_send_at TIMESTAMPTZ,
+    sent_at         TIMESTAMPTZ,
+    opened_at       TIMESTAMPTZ,
+    replied_at      TIMESTAMPTZ,
+    last_error      TEXT,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_email_jobs_campaign_id ON email_jobs(campaign_id);
+CREATE INDEX idx_email_jobs_status ON email_jobs(status);
+CREATE INDEX idx_email_jobs_user_id ON email_jobs(user_id);
+```
+
+---
+
+## 8. LLM Provider Service (Centralized)
+
+Single entry point for all LLM calls. Route handlers never call LLM directly — only services do, and only through `LLMService`.
+
+### Abstract Interface
+
+```python
+# app/interfaces/llm_provider.py
+from abc import ABC, abstractmethod
+
+class AbstractLLMProvider(ABC):
+    @abstractmethod
+    async def chat_completion(
+        self,
+        messages: list[dict],
+        system_prompt: str,
+        model: str,
+    ) -> str: ...
+
+    @abstractmethod
+    async def structured_completion(
+        self,
+        messages: list[dict],
+        system_prompt: str,
+        model: str,
+    ) -> dict: ...
+```
+
+### Modes
+
+```python
+# app/services/llm_service.py
+class LLMMode(str, Enum):
+    CHAT = "chat"             # ChatService wizard conversation
+    GENERATION = "generation" # ProcessorService email drafts
+    EXTRACTION = "extraction" # ChatService param parsing
+```
+
+### Prompt Templates
+
+```
+app/prompts/
+├── chat_base.txt
+├── extraction.txt
+├── generation_job.txt
+├── generation_b2b.txt
+├── generation_hiring.txt
+└── generation_pr.txt
+```
+
+### Structured Output Pattern
+
+```python
+async def extract_params(self, messages: list, campaign_type: str) -> ExtractedParams:
+    response = await self.provider.structured_completion(
+        messages=messages,
+        system_prompt=EXTRACTION_PROMPT,
+        model=self.model,
+    )
+    try:
+        return ExtractedParams(**response)
+    except ValidationError:
+        return await self._retry_with_correction(messages, response)
+```
+
+### Fallback Chain
+
+```
+Primary provider (user setting)
+  → on 429/500: wait 1s, retry once (tenacity)
+  → on continued failure: switch to DEFAULT_LLM_PROVIDER
+  → on complete failure: raise LLMUnavailableError → 503
+```
+
+---
+
+## 9. Background Tasks Architecture
+
+v1 uses FastAPI's built-in `BackgroundTasks`. No broker, no worker process, no Redis.
+
+### How it works
+
+```
+POST /campaigns/{id}/sessions  (finalize session)
+  │
+  ├── Save extracted_params to DB (awaited)
+  ├── Set campaign.status = "processing" (awaited)
+  └── background_tasks.add_task(run_processor, campaign_id, user_id, db_factory)
+      │
+      └── [runs after response is sent, in same process event loop]
+          ├── Load campaign + session from DB (async)
+          ├── Fetch contacts via Apollo or Scraper (async httpx)
+          ├── Bulk insert contacts to DB (async)
+          ├── For each contact (bounded by asyncio.Semaphore):
+          │     └── LLMService.generate_email() (async)
+          │     └── Insert EmailJob to DB (async)
+          │     └── Append SSE event to in-process queue
+          └── Set campaign.status = "ready" (async)
+```
+
+### In-process SSE
+
+Without Redis, SSE progress events use a per-campaign `asyncio.Queue` stored in an in-process registry:
+
+```python
+# app/core/sse.py
+from asyncio import Queue
+from collections import defaultdict
+
+_queues: dict[str, list[Queue]] = defaultdict(list)
+
+def subscribe(campaign_id: str) -> Queue:
+    q: Queue = Queue()
+    _queues[campaign_id].append(q)
+    return q
+
+async def publish(campaign_id: str, event: dict) -> None:
+    for q in _queues.get(campaign_id, []):
+        await q.put(event)
+
+def unsubscribe(campaign_id: str, q: Queue) -> None:
+    _queues[campaign_id].remove(q)
+```
+
+**v1 constraint:** SSE only works correctly with a single-process uvicorn deployment. This is acceptable for v1. In v2, swap `_queues` for Redis pub-sub behind the same `publish`/`subscribe` interface — no call-site changes needed.
+
+### Processor Task
+
+```python
+# app/tasks/processor_task.py
+async def run_processor(
+    campaign_id: UUID,
+    user_id: UUID,
+    db_factory: Callable[[], AsyncSession],
+) -> None:
+    async with db_factory() as session:
+        campaign_repo = CampaignRepository(session)
+        contact_repo = ContactRepository(session)
+        email_job_repo = EmailJobRepository(session)
+
+        campaign = await campaign_repo.get_by_id(campaign_id)
+        session_obj = await campaign_repo.get_session(campaign_id)
+        params = session_obj.extracted_params
+
+        contact_source = ContactSourceFactory.create(params["email_source"])
+        contacts = await contact_source.search(params)
+        await contact_repo.bulk_create(contacts)
+
+        sem = asyncio.Semaphore(settings.PROCESSOR_MAX_CONCURRENCY)
+
+        async def process_one(contact: Contact) -> None:
+            async with sem:
+                draft = await llm_service.generate_email(contact, session_obj, user_profile)
+                job = await email_job_repo.create(EmailJob(**draft, contact_id=contact.id))
+                await publish(str(campaign_id), {"type": "draft_ready", "email_job_id": str(job.id)})
+
+        await asyncio.gather(*[process_one(c) for c in contacts])
+        await campaign_repo.update_status(campaign_id, "ready")
+        await publish(str(campaign_id), {"type": "complete", "total": len(contacts)})
+```
+
+### Email Task
+
+```python
+# app/tasks/email_task.py
+async def send_email_job(
+    email_job_id: UUID,
+    db_factory: Callable[[], AsyncSession],
+) -> None:
+    async with db_factory() as session:
+        email_job_repo = EmailJobRepository(session)
+        job = await email_job_repo.get_by_id(email_job_id)
+
+        daily_ok = await email_service.check_daily_limit(job.user_id, session)
+        if not daily_ok:
+            await email_job_repo.update_status(job.id, "queued")
+            return
+
+        try:
+            result = await email_service.send_via_gmail(job)
+            await email_job_repo.mark_sent(job.id, result.message_id)
+        except BounceError:
+            await email_job_repo.update_status(job.id, "bounced")
+        except Exception as e:
+            await email_job_repo.mark_failed(job.id, str(e))
+```
+
+---
+
+## 10. Error Response Standard
+
+All errors return this shape:
+
+```json
+{
+  "error": {
+    "code": "CAMPAIGN_NOT_FOUND",
+    "message": "Campaign with ID abc123 not found",
+    "details": null
+  }
+}
+```
+
+### Error Codes
+
+| HTTP Status | Code | When |
+|---|---|---|
+| 400 | `VALIDATION_ERROR` | Request body fails Pydantic schema |
+| 401 | `UNAUTHORIZED` | Missing or expired JWT |
+| 403 | `FORBIDDEN` | User doesn't own the resource |
+| 404 | `NOT_FOUND` | Resource doesn't exist |
+| 409 | `CONFLICT` | Duplicate resource |
+| 422 | `UNPROCESSABLE` | Business logic validation failed |
+| 429 | `RATE_LIMITED` | Too many requests |
+| 503 | `LLM_UNAVAILABLE` | All LLM providers failed |
+| 500 | `INTERNAL_ERROR` | Unexpected server error |
+
+### Bounce Warning (informational, not error)
+
+```json
+{
+  "outreaches": [],
+  "_warnings": [
+    {
+      "code": "BOUNCE_RISK",
+      "message": "12 contacts were found via web scraping. Email addresses may be inaccurate."
+    }
+  ]
+}
+```
+
+---
+
+## 11. Build & Run Instructions
+
+### First-time Setup
+
+```bash
+# 1. Install Poetry
+curl -sSL https://install.python-poetry.org | python3 -
+
+# 2. Install dependencies
+poetry install
+
+# 3. Copy and fill env vars
+cp .env.example .env
+
+# 4. Start PostgreSQL (Docker)
+docker compose up -d db
+
+# 5. Run migrations
+poetry run alembic upgrade head
+
+# 6. Start the API server
+poetry run uvicorn app.main:app --reload --port 8000
+```
+
+> **v1:** No Redis, no separate worker process. One command starts everything.
+
+### Docker Compose (`docker-compose.yml`)
+
+```yaml
+version: "3.9"
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: outreach
+      POSTGRES_PASSWORD: outreach
+      POSTGRES_DB: outreach_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
+```
+
+### Migrations
+
+```bash
+poetry run alembic revision --autogenerate -m "describe change"
+poetry run alembic upgrade head
+poetry run alembic downgrade -1
+```
+
+### Tests
+
+```bash
+poetry run pytest
+poetry run pytest --cov=app --cov-report=html
+poetry run pytest tests/test_campaigns.py -v
+```
+
+### Linting
+
+```bash
+poetry run ruff check .
+poetry run ruff format .
+poetry run mypy app/
+```
+
+---
+
+## Appendix: Build Order
+
+| Phase | What | Why |
+|---|---|---|
+| **P0** | DB schema + Alembic setup | Everything depends on this |
+| **P0** | `POST /auth/google` + JWT middleware | Gates all protected routes |
+| **P0** | Repository base class + campaign repo | Services depend on repos |
+| **P0** | `POST /campaigns` + `GET /campaigns` | Core resource |
+| **P0** | ChatService + LLMService (chat mode) | Core wizard flow |
+| **P0** | `POST /campaigns/{id}/chat` (SSE stream) | Wizard UX |
+| **P1** | `PUT /campaigns/{id}/sessions` → enqueue BackgroundTask | Triggers research |
+| **P1** | ProcessorTask (Apollo path first) | Research pipeline |
+| **P1** | LLMService (generation mode) + email prompts | Draft generation |
+| **P1** | `GET /campaigns/{id}/outreach` | Dashboard data |
+| **P1** | `GET /campaigns/{id}/stream` SSE | Live progress |
+| **P2** | EmailTask + Gmail send | Actual sending |
+| **P2** | `GET /campaigns/{id}/stats` | Tracking |
+| **P2** | Scraper path + bounce warnings | Contact source fallback |
+| **P3** | Swap in-process SSE for Redis pub-sub | Multi-process readiness |
+| **P3** | Swap BackgroundTasks for ARQ | Scale beyond single process |
+| **P3** | SendGrid integration | v2 email provider |

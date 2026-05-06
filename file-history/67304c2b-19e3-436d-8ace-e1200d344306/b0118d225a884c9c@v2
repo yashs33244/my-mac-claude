@@ -1,0 +1,377 @@
+# AI Email Outreach Platform — API Contracts
+
+> **Version:** 1.0 (v1 scope)
+> All endpoints prefixed `/api/v1`.
+> Auth: `Authorization: Bearer <jwt_token>` header on all protected routes.
+> Content-Type: `application/json` for all request bodies.
+> The current user is always derived from the token — never from the request body.
+
+---
+
+## Table of Contents
+
+1. [Auth](#1-auth)
+2. [Campaigns](#2-campaigns)
+3. [Chat (Wizard)](#3-chat-wizard)
+4. [Outreach Dashboard](#4-outreach-dashboard)
+5. [Email Jobs (Send)](#5-email-jobs-send)
+
+---
+
+## 1. Auth
+
+### `POST /api/v1/auth/google`
+
+Initiate Google OAuth flow.
+
+**Request:** `{}`
+
+**Response `200`:**
+```json
+{
+  "auth_url": "https://accounts.google.com/o/oauth2/v2/auth?..."
+}
+```
+
+---
+
+### `GET /api/v1/auth/google/callback`
+
+Google OAuth redirect handler.
+
+**Query params:** `code`, `state`
+
+**Response `200`:**
+```json
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com"
+  }
+}
+```
+
+---
+
+## 2. Campaigns
+
+### `POST /api/v1/campaigns`
+
+Create a new campaign and start the chat wizard session.
+
+**Request:**
+```json
+{
+  "type": "job_outreach"
+}
+```
+
+`type` enum: `job_outreach | b2b | hiring | pr | fundraising | partnership`
+
+**Response `201`:**
+```json
+{
+  "campaign_id": "uuid",
+  "session_id": "uuid",
+  "status": "draft",
+  "first_message": "I'd love to help you with your job outreach campaign! Let's start — what role are you targeting and which companies interest you?"
+}
+```
+
+---
+
+### `GET /api/v1/campaigns`
+
+List all campaigns for the authenticated user.
+
+**Response `200`:**
+```json
+{
+  "campaigns": [
+    {
+      "id": "uuid",
+      "type": "job_outreach",
+      "status": "ready",
+      "created_at": "2026-05-01T10:00:00Z"
+    }
+  ],
+  "total": 5
+}
+```
+
+---
+
+### `GET /api/v1/campaigns/{campaign_id}`
+
+Get campaign detail.
+
+**Response `200`:**
+```json
+{
+  "id": "uuid",
+  "type": "b2b",
+  "status": "processing",
+  "config_json": {},
+  "created_at": "2026-05-01T10:00:00Z"
+}
+```
+
+---
+
+### `GET /api/v1/campaigns/{campaign_id}/stats`
+
+Aggregate stats for a campaign.
+
+**Response `200`:**
+```json
+{
+  "total_contacts": 45,
+  "total_drafts": 45,
+  "approved": 43,
+  "queued": 2,
+  "sent": 38,
+  "opened": 12,
+  "replied": 3,
+  "bounced": 2,
+  "failed": 1
+}
+```
+
+---
+
+## 3. Chat (Wizard)
+
+### `POST /api/v1/campaigns/{campaign_id}/chat`
+
+Send a chat message to the campaign wizard. Returns a streaming SSE response.
+
+**Request:**
+```json
+{
+  "message": "I want to reach out to HR managers at Series B SaaS companies in the US"
+}
+```
+
+**Response:** `text/event-stream`
+
+```
+data: {"type": "token", "content": "Got it! "}
+data: {"type": "token", "content": "targeting HR managers "}
+data: {"type": "done", "extracted_params": {"geography": ["US"], "target_strategy": "HR managers at Series B SaaS"}}
+```
+
+When `type: done` is received, the wizard is complete and `extracted_params` is ready to finalize.
+
+---
+
+### `GET /api/v1/campaigns/{campaign_id}/chat`
+
+Get the full chat history for a campaign session.
+
+**Response `200`:**
+```json
+{
+  "session_id": "uuid",
+  "status": "active",
+  "chat_history": [
+    {"role": "assistant", "content": "What kind of campaign would you like?"},
+    {"role": "user", "content": "Job outreach to startups in India"}
+  ],
+  "extracted_params": {}
+}
+```
+
+---
+
+### `PUT /api/v1/campaigns/{campaign_id}/sessions`
+
+Finalize the session — save extracted params and trigger the processor background task.
+
+**Request:**
+```json
+{
+  "extracted_params": {
+    "geography": ["India", "US"],
+    "target_strategy": "CTOs at early-stage startups",
+    "purpose": "Looking for backend engineering roles",
+    "email_source": "apollo",
+    "llm_provider": "openai"
+  }
+}
+```
+
+**Response `202`:**
+```json
+{
+  "message": "Research started. You'll see contacts appear in your dashboard shortly.",
+  "campaign_id": "uuid"
+}
+```
+
+---
+
+### `GET /api/v1/campaigns/{campaign_id}/stream`
+
+SSE stream for real-time processor progress updates.
+
+**Response:** `text/event-stream`
+
+```
+data: {"type": "progress", "message": "Found 3 contacts at Stripe"}
+data: {"type": "contact_found", "contact": {"company": "Stripe", "email": "hr@stripe.com", "source": "apollo"}}
+data: {"type": "draft_ready", "email_job_id": "uuid", "company": "Stripe"}
+data: {"type": "complete", "total_contacts": 45, "total_drafts": 45}
+```
+
+---
+
+## 4. Outreach Dashboard
+
+### `GET /api/v1/campaigns/{campaign_id}/outreach`
+
+Get all email drafts for a campaign (paginated).
+
+**Query params:** `page=1`, `limit=50`, `status=draft|approved|sent`
+
+**Response `200`:**
+```json
+{
+  "outreaches": [
+    {
+      "id": "uuid",
+      "contact": {
+        "company": "Linear",
+        "person_name": "Sarah Chen",
+        "email": "sarah@linear.app",
+        "title": "Head of Engineering",
+        "source": "apollo",
+        "bounce_risk": false
+      },
+      "subject": "Backend Engineer interested in Linear's infra team",
+      "body": "Hi Sarah,\n\nI came across Linear's...",
+      "draft_status": "pending",
+      "status": "draft"
+    }
+  ],
+  "total": 45,
+  "page": 1,
+  "limit": 50
+}
+```
+
+---
+
+### `PATCH /api/v1/campaigns/{campaign_id}/outreach/{outreach_id}`
+
+Edit subject/body or approve/reject a draft.
+
+**Request:**
+```json
+{
+  "subject": "Updated subject line",
+  "body": "Updated body...",
+  "draft_status": "approved"
+}
+```
+
+All fields are optional — send only what's changing.
+
+**Response `200`:**
+```json
+{
+  "id": "uuid",
+  "draft_status": "approved",
+  "updated_at": "2026-05-06T12:00:00Z"
+}
+```
+
+---
+
+## 5. Email Jobs (Send)
+
+### `POST /api/v1/campaigns/{campaign_id}/email-jobs`
+
+Enqueue emails for sending via background task.
+
+**Request — all approved drafts:**
+```json
+{
+  "outreach_ids": "all"
+}
+```
+
+**Request — specific IDs:**
+```json
+{
+  "outreach_ids": ["uuid-1", "uuid-2"]
+}
+```
+
+**Response `202`:**
+```json
+{
+  "queued": 43,
+  "skipped_bounced": 2,
+  "message": "43 emails queued. Sending at 1 email/sec to stay within Gmail limits."
+}
+```
+
+---
+
+### `GET /api/v1/campaigns/{campaign_id}/email-jobs`
+
+List all email jobs with their current status.
+
+**Response `200`:**
+```json
+{
+  "jobs": [
+    {
+      "id": "uuid",
+      "contact_email": "sarah@linear.app",
+      "subject": "...",
+      "status": "sent",
+      "sent_at": "2026-05-06T12:05:00Z"
+    }
+  ],
+  "total": 43
+}
+```
+
+---
+
+### `PATCH /api/v1/email-jobs/{job_id}`
+
+Manual status override (used for webhook integration in v2 or admin correction).
+
+**Request:**
+```json
+{
+  "status": "bounced"
+}
+```
+
+**Response `200`:**
+```json
+{
+  "id": "uuid",
+  "status": "bounced",
+  "updated_at": "2026-05-06T12:10:00Z"
+}
+```
+
+---
+
+### `POST /api/v1/email-jobs/{job_id}/send`
+
+Manually trigger send for a single email job (adds to background task queue).
+
+**Response `202`:**
+```json
+{
+  "job_id": "uuid",
+  "message": "Send queued"
+}
+```
