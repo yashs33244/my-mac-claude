@@ -1,0 +1,452 @@
+"use client";
+
+import React, { useState, use } from "react";
+import { useRouter } from "next/navigation";
+import { AppShell } from "@/components/layout/AppShell";
+import { Button } from "@/components/ui/Button";
+import { Field, Input, TextArea } from "@/components/ui/Field";
+
+const STEPS = [
+  { id: "intent", label: "Intent" },
+  { id: "target", label: "Target" },
+  { id: "sender", label: "Sender" },
+  { id: "sources", label: "Sources" },
+  { id: "review", label: "Review" },
+];
+
+interface WizardPageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default function WizardPage({ params }: WizardPageProps) {
+  const { id } = use(params);
+  const router = useRouter();
+  const [step, setStep] = useState(0);
+  const [loading, setLoading] = useState(false);
+
+  // Form state
+  const [form, setForm] = useState({
+    // Intent
+    goal: "",
+    campaignType: "job_outreach",
+    // Target
+    targetRole: "",
+    targetCompanyType: "",
+    targetLocation: "",
+    targetIndustry: "",
+    // Sender
+    senderName: "",
+    senderTitle: "",
+    senderCompany: "",
+    senderLinkedIn: "",
+    // Sources
+    useApollo: true,
+    useLinkedIn: true,
+    useGitHub: false,
+    maxContacts: "50",
+  });
+
+  const update = (key: string, val: string | boolean) =>
+    setForm((f) => ({ ...f, [key]: val }));
+
+  const handleLaunch = async () => {
+    setLoading(true);
+    try {
+      await fetch(`/api/v1/campaigns/${id}/sessions`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      router.push(`/campaign/${id}/processing`);
+    } catch {
+      setLoading(false);
+    }
+  };
+
+  const canNext = () => {
+    if (step === 0) return form.goal.trim().length > 0;
+    if (step === 1) return form.targetRole.trim().length > 0;
+    if (step === 2) return form.senderName.trim().length > 0;
+    return true;
+  };
+
+  return (
+    <AppShell
+      breadcrumbs={[
+        { label: "Campaigns", href: "/dashboard" },
+        { label: id.slice(0, 8) + "...", href: `/campaign/${id}/dashboard` },
+        { label: "Setup" },
+      ]}
+    >
+      <div style={{ maxWidth: "720px", display: "flex", gap: "32px" }}>
+        {/* Step rail */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "4px", paddingTop: "4px" }}>
+          {STEPS.map((s, i) => {
+            const done = i < step;
+            const active = i === step;
+            return (
+              <button
+                key={s.id}
+                onClick={() => i <= step && setStep(i)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  padding: "8px 12px",
+                  borderRadius: "8px",
+                  background: active ? "var(--bg-3)" : "transparent",
+                  border: "none",
+                  cursor: i <= step ? "pointer" : "default",
+                  whiteSpace: "nowrap",
+                  minWidth: "120px",
+                }}
+              >
+                <div
+                  style={{
+                    width: "22px",
+                    height: "22px",
+                    borderRadius: "50%",
+                    background: done
+                      ? "var(--accent)"
+                      : active
+                      ? "var(--accent-dim)"
+                      : "var(--bg-3)",
+                    border: active ? "2px solid var(--accent)" : "2px solid var(--border)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {done ? (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="var(--accent-fg)" strokeWidth="3">
+                      <path d="M4.5 12.75l6 6 9-13.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  ) : (
+                    <span style={{ fontSize: "10px", color: active ? "var(--accent)" : "var(--fg-3)", fontWeight: 600 }}>
+                      {i + 1}
+                    </span>
+                  )}
+                </div>
+                <span
+                  style={{
+                    fontSize: "13px",
+                    fontWeight: active ? 600 : 400,
+                    color: active ? "var(--fg)" : done ? "var(--fg-1)" : "var(--fg-3)",
+                  }}
+                >
+                  {s.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Step content */}
+        <div style={{ flex: 1 }}>
+          <StepContent step={step} form={form} update={update} />
+
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: "28px" }}>
+            <Button
+              variant="ghost"
+              onClick={() => setStep((s) => s - 1)}
+              disabled={step === 0}
+            >
+              ← Back
+            </Button>
+            {step < STEPS.length - 1 ? (
+              <Button
+                variant="primary"
+                onClick={() => setStep((s) => s + 1)}
+                disabled={!canNext()}
+              >
+                Next →
+              </Button>
+            ) : (
+              <Button variant="primary" loading={loading} onClick={handleLaunch}>
+                🚀 Launch Campaign
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
+
+interface StepContentProps {
+  step: number;
+  form: Record<string, string | boolean>;
+  update: (key: string, val: string | boolean) => void;
+}
+
+function StepContent({ step, form, update }: StepContentProps) {
+  const inputStyle: React.CSSProperties = { width: "100%" };
+
+  if (step === 0) {
+    return (
+      <div>
+        <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--fg)", marginBottom: "6px" }}>
+          Campaign Intent
+        </h2>
+        <p style={{ fontSize: "13px", color: "var(--fg-2)", marginBottom: "24px" }}>
+          What are you trying to achieve with this campaign?
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <Field label="Campaign Goal" required>
+            <TextArea
+              fullWidth
+              rows={4}
+              placeholder="E.g. I'm a senior backend engineer looking for opportunities at Series B fintech startups in NYC. I specialize in Go, distributed systems, and payments infrastructure."
+              value={form.goal as string}
+              onChange={(e) => update("goal", e.target.value)}
+            />
+          </Field>
+          <Field label="Campaign Type">
+            <select
+              value={form.campaignType as string}
+              onChange={(e) => update("campaignType", e.target.value)}
+              style={{
+                background: "var(--bg-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                color: "var(--fg)",
+                fontSize: "13px",
+                padding: "8px 12px",
+                height: "36px",
+                outline: "none",
+                fontFamily: "var(--font-ui)",
+                width: "100%",
+              }}
+            >
+              <option value="job_outreach">Job Outreach</option>
+              <option value="b2b">B2B Sales</option>
+              <option value="investor_outreach">Investor Outreach</option>
+              <option value="custom">Custom</option>
+            </select>
+          </Field>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 1) {
+    return (
+      <div>
+        <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--fg)", marginBottom: "6px" }}>
+          Target Audience
+        </h2>
+        <p style={{ fontSize: "13px", color: "var(--fg-2)", marginBottom: "24px" }}>
+          Who should we reach out to?
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <Field label="Target Role / Title" required>
+            <Input
+              style={inputStyle}
+              placeholder="e.g. Head of Engineering, VP of Sales"
+              value={form.targetRole as string}
+              onChange={(e) => update("targetRole", e.target.value)}
+            />
+          </Field>
+          <Field label="Company Type / Stage">
+            <Input
+              style={inputStyle}
+              placeholder="e.g. Series B fintech, Enterprise SaaS"
+              value={form.targetCompanyType as string}
+              onChange={(e) => update("targetCompanyType", e.target.value)}
+            />
+          </Field>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <Field label="Location">
+              <Input
+                style={inputStyle}
+                placeholder="e.g. NYC, San Francisco, Remote"
+                value={form.targetLocation as string}
+                onChange={(e) => update("targetLocation", e.target.value)}
+              />
+            </Field>
+            <Field label="Industry">
+              <Input
+                style={inputStyle}
+                placeholder="e.g. Fintech, Dev Tools"
+                value={form.targetIndustry as string}
+                onChange={(e) => update("targetIndustry", e.target.value)}
+              />
+            </Field>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 2) {
+    return (
+      <div>
+        <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--fg)", marginBottom: "6px" }}>
+          Sender Info
+        </h2>
+        <p style={{ fontSize: "13px", color: "var(--fg-2)", marginBottom: "24px" }}>
+          Your information for personalization
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+            <Field label="Your Name" required>
+              <Input
+                style={inputStyle}
+                placeholder="Alex Johnson"
+                value={form.senderName as string}
+                onChange={(e) => update("senderName", e.target.value)}
+              />
+            </Field>
+            <Field label="Your Title">
+              <Input
+                style={inputStyle}
+                placeholder="Senior Backend Engineer"
+                value={form.senderTitle as string}
+                onChange={(e) => update("senderTitle", e.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Company / Background">
+            <Input
+              style={inputStyle}
+              placeholder="e.g. Ex-Stripe, 4 years experience"
+              value={form.senderCompany as string}
+              onChange={(e) => update("senderCompany", e.target.value)}
+            />
+          </Field>
+          <Field label="LinkedIn URL">
+            <Input
+              style={inputStyle}
+              placeholder="https://linkedin.com/in/alexjohnson"
+              value={form.senderLinkedIn as string}
+              onChange={(e) => update("senderLinkedIn", e.target.value)}
+            />
+          </Field>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 3) {
+    return (
+      <div>
+        <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--fg)", marginBottom: "6px" }}>
+          Data Sources
+        </h2>
+        <p style={{ fontSize: "13px", color: "var(--fg-2)", marginBottom: "24px" }}>
+          Where should we find your contacts?
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {[
+            { key: "useApollo", label: "Apollo.io", desc: "B2B contact database with 275M+ profiles" },
+            { key: "useLinkedIn", label: "LinkedIn", desc: "Professional network scraping" },
+            { key: "useGitHub", label: "GitHub", desc: "Find engineers via open source contributions" },
+          ].map(({ key, label, desc }) => (
+            <label
+              key={key}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                padding: "14px 16px",
+                background: form[key] ? "var(--accent-dim)" : "var(--bg-2)",
+                border: `1px solid ${form[key] ? "var(--accent)44" : "var(--border)"}`,
+                borderRadius: "10px",
+                cursor: "pointer",
+                transition: "all 0.15s",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={form[key] as boolean}
+                onChange={(e) => update(key, e.target.checked)}
+                style={{ width: "16px", height: "16px", accentColor: "var(--accent)", cursor: "pointer" }}
+              />
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--fg)" }}>{label}</div>
+                <div style={{ fontSize: "12px", color: "var(--fg-2)", marginTop: "1px" }}>{desc}</div>
+              </div>
+            </label>
+          ))}
+          <Field label="Max Contacts" hint="We'll find up to this many matching contacts">
+            <Input
+              style={{ width: "120px" }}
+              type="number"
+              min="10"
+              max="500"
+              value={form.maxContacts as string}
+              onChange={(e) => update("maxContacts", e.target.value)}
+            />
+          </Field>
+        </div>
+      </div>
+    );
+  }
+
+  // Step 4: Review
+  return (
+    <div>
+      <h2 style={{ fontSize: "18px", fontWeight: 700, color: "var(--fg)", marginBottom: "6px" }}>
+        Review & Launch
+      </h2>
+      <p style={{ fontSize: "13px", color: "var(--fg-2)", marginBottom: "24px" }}>
+        Review your campaign settings before launching
+      </p>
+      <div
+        style={{
+          background: "var(--bg-2)",
+          border: "1px solid var(--border)",
+          borderRadius: "10px",
+          overflow: "hidden",
+        }}
+      >
+        {[
+          { label: "Goal", value: (form.goal as string) || "—" },
+          { label: "Type", value: (form.campaignType as string).replace(/_/g, " ") },
+          { label: "Target Role", value: (form.targetRole as string) || "—" },
+          { label: "Location", value: (form.targetLocation as string) || "Any" },
+          { label: "Max Contacts", value: form.maxContacts as string },
+          {
+            label: "Sources",
+            value: [
+              form.useApollo ? "Apollo" : null,
+              form.useLinkedIn ? "LinkedIn" : null,
+              form.useGitHub ? "GitHub" : null,
+            ]
+              .filter(Boolean)
+              .join(", ") || "None",
+          },
+        ].map(({ label, value }, i, arr) => (
+          <div
+            key={label}
+            style={{
+              display: "flex",
+              padding: "12px 16px",
+              borderBottom: i < arr.length - 1 ? "1px solid var(--border)" : "none",
+              gap: "16px",
+            }}
+          >
+            <span style={{ fontSize: "12px", color: "var(--fg-3)", width: "120px", flexShrink: 0 }}>
+              {label}
+            </span>
+            <span style={{ fontSize: "13px", color: "var(--fg)", fontWeight: 500 }}>{value}</span>
+          </div>
+        ))}
+      </div>
+      <div
+        style={{
+          marginTop: "16px",
+          padding: "12px 16px",
+          background: "var(--accent-dim)",
+          border: "1px solid var(--accent)33",
+          borderRadius: "10px",
+          fontSize: "13px",
+          color: "var(--fg-1)",
+        }}
+      >
+        🚀 Launching will start the AI research agents. This typically takes 2-5 minutes.
+      </div>
+    </div>
+  );
+}

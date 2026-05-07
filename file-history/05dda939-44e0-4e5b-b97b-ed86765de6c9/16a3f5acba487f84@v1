@@ -1,0 +1,383 @@
+"use client";
+
+import React, { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { AppShell } from "@/components/layout/AppShell";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import type { OutreachDraft, CampaignStats } from "@/types";
+
+interface DashboardPageProps {
+  params: Promise<{ id: string }>;
+}
+
+interface StatCardProps {
+  label: string;
+  value: number;
+  color?: string;
+}
+
+function StatCard({ label, value, color }: StatCardProps) {
+  return (
+    <div
+      style={{
+        background: "var(--bg-2)",
+        border: "1px solid var(--border)",
+        borderRadius: "10px",
+        padding: "16px",
+        flex: 1,
+      }}
+    >
+      <div style={{ fontSize: "24px", fontWeight: 700, color: color || "var(--fg)", marginBottom: "4px" }}>
+        {value}
+      </div>
+      <div style={{ fontSize: "11px", color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+        {label}
+      </div>
+    </div>
+  );
+}
+
+export default function CampaignDashboard({ params }: DashboardPageProps) {
+  const { id } = use(params);
+  const router = useRouter();
+  const [outreaches, setOutreaches] = useState<OutreachDraft[]>([]);
+  const [stats, setStats] = useState<CampaignStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ subject: "", body: "" });
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("outreach_token");
+    if (!token) {
+      router.replace("/auth");
+      return;
+    }
+
+    Promise.all([
+      fetch(`/api/v1/campaigns/${id}/outreach`).then((r) => r.json()),
+      fetch(`/api/v1/campaigns/${id}/stats`).then((r) => r.json()),
+    ]).then(([outreachData, statsData]) => {
+      setOutreaches(outreachData.outreaches || []);
+      setStats(statsData);
+      setLoading(false);
+    });
+  }, [id, router]);
+
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const updateDraftStatus = async (outreachId: string, draft_status: "approved" | "rejected") => {
+    const res = await fetch(`/api/v1/campaigns/${id}/outreach/${outreachId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ draft_status }),
+    });
+    const data = await res.json();
+    setOutreaches((o) =>
+      o.map((item) => (item.id === outreachId ? { ...item, draft_status: data.draft_status } : item))
+    );
+    showToast(draft_status === "approved" ? "Email approved" : "Email rejected");
+  };
+
+  const startEdit = (o: OutreachDraft) => {
+    setEditingId(o.id);
+    setEditForm({ subject: o.subject, body: o.body });
+  };
+
+  const saveEdit = async () => {
+    if (!editingId) return;
+    const res = await fetch(`/api/v1/campaigns/${id}/outreach/${editingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editForm),
+    });
+    const data = await res.json();
+    setOutreaches((o) =>
+      o.map((item) =>
+        item.id === editingId ? { ...item, subject: data.subject || editForm.subject, body: data.body || editForm.body } : item
+      )
+    );
+    setEditingId(null);
+    showToast("Draft saved");
+  };
+
+  const sendAllApproved = async () => {
+    setSending(true);
+    try {
+      const res = await fetch(`/api/v1/campaigns/${id}/email-jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      showToast(data.message || "Emails queued!");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const approvedCount = outreaches.filter((o) => o.draft_status === "approved").length;
+
+  return (
+    <AppShell
+      breadcrumbs={[
+        { label: "Campaigns", href: "/dashboard" },
+        { label: id.slice(0, 8) + "..." },
+        { label: "Dashboard" },
+      ]}
+      actions={
+        <Button
+          variant="primary"
+          size="sm"
+          loading={sending}
+          onClick={sendAllApproved}
+          disabled={approvedCount === 0}
+        >
+          Send All Approved ({approvedCount})
+        </Button>
+      }
+    >
+      {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            position: "fixed",
+            bottom: "24px",
+            right: "24px",
+            background: "var(--bg-3)",
+            border: "1px solid var(--border-strong)",
+            borderRadius: "8px",
+            padding: "10px 16px",
+            fontSize: "13px",
+            color: "var(--fg)",
+            zIndex: 100,
+            animation: "fadeIn 0.2s ease",
+          }}
+        >
+          {toast}
+        </div>
+      )}
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display: "flex", gap: "10px", marginBottom: "24px", flexWrap: "wrap" }}>
+          <StatCard label="Contacts" value={stats.total_contacts} />
+          <StatCard label="Drafts" value={stats.total_drafts} />
+          <StatCard label="Approved" value={stats.approved} color="var(--accent)" />
+          <StatCard label="Sent" value={stats.sent} color="var(--blue)" />
+          <StatCard label="Opened" value={stats.opened} color="var(--amber)" />
+          <StatCard label="Replied" value={stats.replied} color="var(--teal)" />
+          <StatCard label="Bounced" value={stats.bounced} color="var(--red)" />
+        </div>
+      )}
+
+      {/* Table header */}
+      <div style={{ marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h2 style={{ fontSize: "15px", fontWeight: 600, color: "var(--fg)" }}>
+          Email Drafts ({outreaches.length})
+        </h2>
+        <div style={{ display: "flex", gap: "8px", fontSize: "12px", color: "var(--fg-3)" }}>
+          <span>{outreaches.filter((o) => o.draft_status === "pending").length} pending</span>
+          <span>·</span>
+          <span>{approvedCount} approved</span>
+          <span>·</span>
+          <span>{outreaches.filter((o) => o.draft_status === "rejected").length} rejected</span>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "200px", color: "var(--fg-3)", fontSize: "13px" }}>
+          Loading drafts...
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {outreaches.map((o) => (
+            <div
+              key={o.id}
+              style={{
+                background: "var(--bg-2)",
+                border: "1px solid var(--border)",
+                borderRadius: "10px",
+                overflow: "hidden",
+              }}
+            >
+              {/* Row header */}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  padding: "12px 16px",
+                  borderBottom: editingId === o.id ? "1px solid var(--border)" : "none",
+                }}
+              >
+                {/* Contact */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "3px" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--fg)" }}>
+                      {o.contact.person_name}
+                    </span>
+                    <span style={{ fontSize: "12px", color: "var(--fg-3)" }}>at</span>
+                    <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--accent)" }}>
+                      {o.contact.company}
+                    </span>
+                    {o.contact.bounce_risk && (
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          background: "#e87a7a22",
+                          color: "var(--red)",
+                          border: "1px solid #e87a7a33",
+                          borderRadius: "4px",
+                          padding: "1px 6px",
+                        }}
+                      >
+                        bounce risk
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <span style={{ fontSize: "11px", color: "var(--fg-3)" }}>{o.contact.title}</span>
+                    <span style={{ fontSize: "11px", color: "var(--fg-3)" }}>·</span>
+                    <span style={{ fontSize: "11px", color: "var(--fg-3)" }}>{o.contact.email}</span>
+                  </div>
+                </div>
+
+                {/* Subject preview */}
+                <div
+                  style={{
+                    flex: 2,
+                    fontSize: "12px",
+                    color: "var(--fg-1)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    maxWidth: "320px",
+                  }}
+                >
+                  {o.subject}
+                </div>
+
+                {/* Status + actions */}
+                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                  <Badge label={o.draft_status} />
+                  <button
+                    onClick={() => (editingId === o.id ? setEditingId(null) : startEdit(o))}
+                    style={{
+                      background: "var(--bg-3)",
+                      border: "1px solid var(--border)",
+                      borderRadius: "6px",
+                      color: "var(--fg-2)",
+                      fontSize: "11px",
+                      padding: "3px 8px",
+                      cursor: "pointer",
+                      fontFamily: "var(--font-ui)",
+                    }}
+                  >
+                    {editingId === o.id ? "Close" : "Edit"}
+                  </button>
+                  {o.draft_status !== "approved" && (
+                    <button
+                      onClick={() => updateDraftStatus(o.id, "approved")}
+                      style={{
+                        background: "var(--accent-dim)",
+                        border: "1px solid var(--accent)44",
+                        borderRadius: "6px",
+                        color: "var(--accent)",
+                        fontSize: "11px",
+                        padding: "3px 8px",
+                        cursor: "pointer",
+                        fontFamily: "var(--font-ui)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      Approve
+                    </button>
+                  )}
+                  {o.draft_status !== "rejected" && (
+                    <button
+                      onClick={() => updateDraftStatus(o.id, "rejected")}
+                      style={{
+                        background: "#e87a7a11",
+                        border: "1px solid #e87a7a33",
+                        borderRadius: "6px",
+                        color: "var(--red)",
+                        fontSize: "11px",
+                        padding: "3px 8px",
+                        cursor: "pointer",
+                        fontFamily: "var(--font-ui)",
+                      }}
+                    >
+                      Reject
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Inline edit */}
+              {editingId === o.id && (
+                <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div>
+                    <label style={{ fontSize: "11px", color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "4px" }}>
+                      Subject
+                    </label>
+                    <input
+                      value={editForm.subject}
+                      onChange={(e) => setEditForm((f) => ({ ...f, subject: e.target.value }))}
+                      style={{
+                        width: "100%",
+                        background: "var(--bg-3)",
+                        border: "1px solid var(--border-strong)",
+                        borderRadius: "8px",
+                        color: "var(--fg)",
+                        fontSize: "13px",
+                        padding: "8px 12px",
+                        outline: "none",
+                        fontFamily: "var(--font-ui)",
+                      }}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: "11px", color: "var(--fg-3)", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: "4px" }}>
+                      Body
+                    </label>
+                    <textarea
+                      value={editForm.body}
+                      onChange={(e) => setEditForm((f) => ({ ...f, body: e.target.value }))}
+                      rows={8}
+                      style={{
+                        width: "100%",
+                        background: "var(--bg-3)",
+                        border: "1px solid var(--border-strong)",
+                        borderRadius: "8px",
+                        color: "var(--fg)",
+                        fontSize: "13px",
+                        padding: "10px 12px",
+                        outline: "none",
+                        resize: "vertical",
+                        fontFamily: "var(--font-mono)",
+                        lineHeight: 1.6,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Button variant="primary" size="sm" onClick={saveEdit}>
+                      Save Draft
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </AppShell>
+  );
+}

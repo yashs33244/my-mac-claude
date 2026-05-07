@@ -1,0 +1,30 @@
+"use client";
+
+import React from "react";
+import { Sidebar } from "./Sidebar";
+import { Topbar } from "./Topbar";
+
+interface Breadcrumb {
+  label: string;
+  href?: string;
+}
+
+interface AppShellProps {
+  children: React.ReactNode;
+  breadcrumbs?: Breadcrumb[];
+  actions?: React.ReactNode;
+}
+
+export function AppShell({ children, breadcrumbs, actions }: AppShellProps) {
+  return (
+    <div style={{ display: "flex", height: "100vh", background: "var(--bg)" }}>
+      <Sidebar />
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <Topbar breadcrumbs={breadcrumbs} actions={actions} />
+        <main style={{ flex: 1, overflowY: "auto", padding: "24px" }}>
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

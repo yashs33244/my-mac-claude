@@ -1,0 +1,302 @@
+"use client";
+
+import React, { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/Button";
+import { Field, Input } from "@/components/ui/Field";
+import { Icon } from "@/components/ui/Icon";
+
+export default function AuthPage() {
+  const router = useRouter();
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleGoogleAuth = async () => {
+    setLoading(true);
+    try {
+      // Mock: set token and redirect
+      await new Promise((r) => setTimeout(r, 800));
+      localStorage.setItem("outreach_token", "mock-token-google");
+      router.push("/campaign/new");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      await new Promise((r) => setTimeout(r, 600));
+      localStorage.setItem("outreach_token", "mock-token-email");
+      router.push("/dashboard");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        height: "100vh",
+        display: "flex",
+        background: "var(--bg)",
+        overflow: "hidden",
+      }}
+    >
+      {/* Left — Brand panel */}
+      <div
+        style={{
+          flex: "0 0 50%",
+          background: "var(--bg-1)",
+          borderRight: "1px solid var(--border)",
+          position: "relative",
+          overflow: "hidden",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "48px",
+        }}
+      >
+        {/* Aurora blobs */}
+        <div
+          className="aurora-blob-1"
+          style={{
+            position: "absolute",
+            width: "400px",
+            height: "400px",
+            top: "10%",
+            left: "-10%",
+            background: "radial-gradient(circle, #7dd3a04d 0%, transparent 70%)",
+            filter: "blur(60px)",
+            borderRadius: "50%",
+          }}
+        />
+        <div
+          className="aurora-blob-2"
+          style={{
+            position: "absolute",
+            width: "300px",
+            height: "300px",
+            bottom: "15%",
+            right: "-5%",
+            background: "radial-gradient(circle, #7aa7e840 0%, transparent 70%)",
+            filter: "blur(50px)",
+            borderRadius: "50%",
+          }}
+        />
+        <div
+          className="aurora-blob-3"
+          style={{
+            position: "absolute",
+            width: "250px",
+            height: "250px",
+            top: "60%",
+            left: "30%",
+            background: "radial-gradient(circle, #b8a1e840 0%, transparent 70%)",
+            filter: "blur(40px)",
+            borderRadius: "50%",
+          }}
+        />
+
+        {/* Content */}
+        <div style={{ position: "relative", zIndex: 1, maxWidth: "360px" }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              marginBottom: "48px",
+            }}
+          >
+            <div
+              style={{
+                width: "32px",
+                height: "32px",
+                background: "var(--accent)",
+                borderRadius: "8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-fg)" strokeWidth="2.5">
+                <path d="M22 2L11 13" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M22 2L15 22l-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            </div>
+            <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--fg)" }}>Outreach</span>
+          </div>
+
+          <h1
+            style={{
+              fontSize: "32px",
+              fontWeight: 700,
+              color: "var(--fg)",
+              lineHeight: 1.2,
+              marginBottom: "16px",
+            }}
+          >
+            AI-powered email outreach that actually works
+          </h1>
+          <p style={{ fontSize: "15px", color: "var(--fg-2)", lineHeight: 1.6, marginBottom: "40px" }}>
+            Research your contacts, generate personalized emails, and send at scale — all powered by AI.
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            {[
+              "45 personalized emails generated in 2 minutes",
+              "AI finds decision-makers at your target companies",
+              "Track opens, clicks, and replies in one place",
+            ].map((feat) => (
+              <div key={feat} style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                <div
+                  style={{
+                    width: "18px",
+                    height: "18px",
+                    background: "var(--accent-dim)",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    marginTop: "1px",
+                  }}
+                >
+                  <Icon name="check" size={11} color="var(--accent)" />
+                </div>
+                <span style={{ fontSize: "13px", color: "var(--fg-1)", lineHeight: 1.5 }}>{feat}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Right — Form */}
+      <div
+        style={{
+          flex: "0 0 50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "48px",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: "380px" }}>
+          <h2
+            style={{
+              fontSize: "24px",
+              fontWeight: 700,
+              color: "var(--fg)",
+              marginBottom: "8px",
+            }}
+          >
+            {mode === "signin" ? "Welcome back" : "Create your account"}
+          </h2>
+          <p style={{ fontSize: "14px", color: "var(--fg-2)", marginBottom: "32px" }}>
+            {mode === "signin"
+              ? "Sign in to continue to Outreach"
+              : "Get started with your AI outreach campaigns"}
+          </p>
+
+          {/* Google OAuth */}
+          <Button
+            variant="secondary"
+            size="lg"
+            loading={loading}
+            onClick={handleGoogleAuth}
+            style={{ width: "100%", justifyContent: "center", marginBottom: "20px" }}
+          >
+            <Icon name="google" size={16} />
+            Continue with Google
+          </Button>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              marginBottom: "20px",
+            }}
+          >
+            <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+            <span style={{ fontSize: "12px", color: "var(--fg-3)" }}>or</span>
+            <div style={{ flex: 1, height: "1px", background: "var(--border)" }} />
+          </div>
+
+          {/* Email form */}
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {mode === "signup" && (
+              <Field label="Name" required>
+                <Input
+                  fullWidth
+                  type="text"
+                  placeholder="Alex Johnson"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </Field>
+            )}
+            <Field label="Email" required>
+              <Input
+                fullWidth
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Field>
+            <Field label="Password" required>
+              <Input
+                fullWidth
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </Field>
+
+            <Button
+              type="submit"
+              variant="primary"
+              size="lg"
+              loading={loading}
+              style={{ width: "100%", justifyContent: "center", marginTop: "4px" }}
+            >
+              {mode === "signin" ? "Sign in" : "Create account"}
+            </Button>
+          </form>
+
+          <p
+            style={{
+              textAlign: "center",
+              marginTop: "24px",
+              fontSize: "13px",
+              color: "var(--fg-2)",
+            }}
+          >
+            {mode === "signin" ? "Don't have an account? " : "Already have an account? "}
+            <button
+              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
+              style={{
+                background: "none",
+                border: "none",
+                color: "var(--accent)",
+                cursor: "pointer",
+                fontFamily: "var(--font-ui)",
+                fontSize: "13px",
+                fontWeight: 500,
+              }}
+            >
+              {mode === "signin" ? "Sign up" : "Sign in"}
+            </button>
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}

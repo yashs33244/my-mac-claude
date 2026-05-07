@@ -1,0 +1,180 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Badge } from "@/components/ui/Badge";
+import type { Campaign } from "@/types";
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+
+  useEffect(() => {
+    fetch("/api/v1/campaigns")
+      .then((r) => r.json())
+      .then((data) => setCampaigns(data.campaigns || []))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <aside
+      style={{
+        width: "220px",
+        minWidth: "220px",
+        background: "var(--bg-1)",
+        borderRight: "1px solid var(--border)",
+        display: "flex",
+        flexDirection: "column",
+        height: "100vh",
+        position: "sticky",
+        top: 0,
+      }}
+    >
+      {/* Logo */}
+      <div
+        style={{
+          padding: "16px 16px 12px",
+          borderBottom: "1px solid var(--border)",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}
+      >
+        <div
+          style={{
+            width: "24px",
+            height: "24px",
+            background: "var(--accent)",
+            borderRadius: "6px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-fg)" strokeWidth="2.5">
+            <path d="M22 2L11 13" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M22 2L15 22l-4-9-9-4 20-7z" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
+        <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--fg)" }}>Outreach</span>
+      </div>
+
+      {/* Nav */}
+      <nav style={{ padding: "8px" }}>
+        <NavItem href="/dashboard" label="Dashboard" active={pathname === "/dashboard"} icon="⊞" />
+        <NavItem href="/campaign/new" label="New Campaign" active={pathname === "/campaign/new"} icon="+" />
+      </nav>
+
+      {/* Campaigns list */}
+      <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            padding: "8px 16px 4px",
+            fontSize: "10px",
+            fontWeight: 600,
+            color: "var(--fg-3)",
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+          }}
+        >
+          Campaigns
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 8px 8px" }}>
+          {campaigns.map((c) => {
+            const isActive = pathname.includes(`/campaign/${c.id}`);
+            return (
+              <Link
+                key={c.id}
+                href={`/campaign/${c.id}/dashboard`}
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "3px",
+                  padding: "7px 10px",
+                  borderRadius: "7px",
+                  background: isActive ? "var(--bg-3)" : "transparent",
+                  marginBottom: "1px",
+                  transition: "background 0.1s",
+                  cursor: "pointer",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "12px",
+                    color: isActive ? "var(--fg)" : "var(--fg-1)",
+                    fontWeight: isActive ? 500 : 400,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {c.type.replace(/_/g, " ")}
+                </span>
+                <Badge label={c.status} />
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Bottom */}
+      <div style={{ padding: "12px", borderTop: "1px solid var(--border)" }}>
+        <button
+          onClick={() => {
+            localStorage.removeItem("outreach_token");
+            window.location.href = "/auth";
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            color: "var(--fg-3)",
+            fontSize: "12px",
+            cursor: "pointer",
+            padding: "4px 6px",
+            borderRadius: "6px",
+            width: "100%",
+            textAlign: "left",
+          }}
+        >
+          Sign out
+        </button>
+      </div>
+    </aside>
+  );
+}
+
+function NavItem({
+  href,
+  label,
+  active,
+  icon,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  icon: string;
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "6px 10px",
+        borderRadius: "7px",
+        background: active ? "var(--bg-3)" : "transparent",
+        color: active ? "var(--fg)" : "var(--fg-2)",
+        fontSize: "13px",
+        fontWeight: active ? 500 : 400,
+        marginBottom: "1px",
+        transition: "background 0.1s",
+        textDecoration: "none",
+      }}
+    >
+      <span style={{ fontSize: "14px", opacity: 0.7 }}>{icon}</span>
+      {label}
+    </Link>
+  );
+}
