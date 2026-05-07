@@ -1,5 +1,4 @@
 {
-  "effortLevel": "medium",
   "hooks": {
     "Stop": [
       {
@@ -20,5 +19,7 @@
         ]
       }
     ]
-  }
+  },
+  "effortLevel": "medium",
+  "skipDangerousModePermissionPrompt": true
 }

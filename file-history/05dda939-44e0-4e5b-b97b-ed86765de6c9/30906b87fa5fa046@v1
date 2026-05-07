@@ -1,0 +1,67 @@
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+from datetime import datetime, timezone
+
+from app.deps import get_db, get_current_user
+from app.schemas.outreach import PatchOutreachRequest
+from app.repositories.email_job_repository import EmailJobRepository
+from app.repositories.contact_repository import ContactRepository
+from app.models.user import User
+
+router = APIRouter(prefix="/campaigns", tags=["outreach"])
+
+
+@router.get("/{campaign_id}/outreach")
+async def list_outreach(
+    campaign_id: UUID,
+    page: int = Query(1, ge=1),
+    limit: int = Query(50, ge=1, le=100),
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    repo = EmailJobRepository(db)
+    contact_repo = ContactRepository(db)
+    jobs, total = await repo.list_for_campaign(campaign_id, page, limit, status)
+
+    outreaches = []
+    for job in jobs:
+        contact = await contact_repo.get_by_id(job.contact_id)
+        outreaches.append(
+            {
+                "id": job.id,
+                "contact": {
+                    "company": contact.company if contact else "",
+                    "person_name": contact.person_name if contact else None,
+                    "email": contact.email if contact else str(job.contact_id),
+                    "title": contact.title if contact else None,
+                    "source": contact.source if contact else "apollo",
+                    "bounce_risk": contact.bounce_risk if contact else False,
+                },
+                "subject": job.subject,
+                "body": job.body,
+                "draft_status": job.draft_status,
+                "status": job.status,
+            }
+        )
+
+    return {"outreaches": outreaches, "total": total, "page": page, "limit": limit}
+
+
+@router.patch("/{campaign_id}/outreach/{outreach_id}")
+async def patch_outreach(
+    campaign_id: UUID,
+    outreach_id: UUID,
+    req: PatchOutreachRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    repo = EmailJobRepository(db)
+    job = await repo.update_draft_status(outreach_id, req.draft_status, req.subject, req.body)
+    await db.commit()
+    return {
+        "id": job.id,
+        "draft_status": job.draft_status,
+        "updated_at": datetime.now(timezone.utc),
+    }

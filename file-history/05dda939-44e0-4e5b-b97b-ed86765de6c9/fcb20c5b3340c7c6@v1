@@ -1,0 +1,78 @@
+from fastapi import APIRouter, Depends, BackgroundTasks
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from uuid import UUID
+
+from app.deps import get_db, get_current_user
+from app.schemas.email_job import EnqueueEmailsRequest
+from app.repositories.email_job_repository import EmailJobRepository
+from app.models.user import User
+from app.models.email_job import EmailJob
+from app.models.contact import Contact
+
+router = APIRouter(prefix="/campaigns", tags=["email_jobs"])
+
+
+@router.post("/{campaign_id}/email-jobs", status_code=202)
+async def enqueue_emails(
+    campaign_id: UUID,
+    req: EnqueueEmailsRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    repo = EmailJobRepository(db)
+
+    if req.outreach_ids == "all":
+        jobs = await repo.list_approved(campaign_id)
+    else:
+        jobs = await repo.get_by_ids(req.outreach_ids)
+
+    queued = 0
+    skipped = 0
+    for job in jobs:
+        from app.repositories.contact_repository import ContactRepository
+
+        contact_repo = ContactRepository(db)
+        contact = await contact_repo.get_by_id(job.contact_id)
+        if contact and contact.bounce_risk:
+            skipped += 1
+            continue
+        await repo.update_status(job.id, "queued")
+        from app.tasks.email_task import send_email_job
+        from app.deps import AsyncSessionLocal
+
+        background_tasks.add_task(send_email_job, job.id, AsyncSessionLocal)
+        queued += 1
+
+    await db.commit()
+    return {
+        "queued": queued,
+        "skipped_bounced": skipped,
+        "message": f"{queued} emails queued. Sending at 1 email/sec to stay within Gmail limits.",
+    }
+
+
+@router.get("/{campaign_id}/email-jobs")
+async def list_email_jobs(
+    campaign_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(EmailJob, Contact)
+        .join(Contact, EmailJob.contact_id == Contact.id)
+        .where(EmailJob.campaign_id == campaign_id)
+    )
+    rows = result.all()
+    jobs = [
+        {
+            "id": job.id,
+            "contact_email": contact.email,
+            "subject": job.subject,
+            "status": job.status,
+            "sent_at": job.sent_at,
+        }
+        for job, contact in rows
+    ]
+    return {"jobs": jobs, "total": len(jobs)}
