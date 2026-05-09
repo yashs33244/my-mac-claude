@@ -1,5 +1,5 @@
 {
-  "numStartups": 21,
+  "numStartups": 22,
   "hasSeenTasksHint": true,
   "tipsHistory": {
     "new-user-warmup": 9,
@@ -21,8 +21,8 @@
     "continue": 18,
     "shift-tab": 18,
     "image-paste": 7,
-    "custom-agents": 7,
-    "agent-flag": 7,
+    "custom-agents": 22,
+    "agent-flag": 22,
     "desktop-app": 8,
     "desktop-shortcut": 8,
     "web-app": 8,
@@ -32,10 +32,10 @@
     "permissions": 21,
     "rename-conversation": 12,
     "custom-commands": 12,
-    "default-permission-mode-config": 12,
+    "default-permission-mode-config": 22,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 62,
+  "promptQueueUseCount": 66,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_amber_sentinel": true,
@@ -855,7 +855,21 @@
       "projectOnboardingSeenCount": 0,
       "hasClaudeMdExternalIncludesApproved": false,
       "hasClaudeMdExternalIncludesWarningShown": false,
-      "lastGracefulShutdown": false
+      "lastGracefulShutdown": false,
+      "lastCost": 0,
+      "lastAPIDuration": 0,
+      "lastAPIDurationWithoutRetries": 0,
+      "lastToolDuration": 0,
+      "lastDuration": 5526,
+      "lastLinesAdded": 0,
+      "lastLinesRemoved": 0,
+      "lastTotalInputTokens": 0,
+      "lastTotalOutputTokens": 0,
+      "lastTotalCacheCreationInputTokens": 0,
+      "lastTotalCacheReadInputTokens": 0,
+      "lastTotalWebSearchRequests": 0,
+      "lastModelUsage": {},
+      "lastSessionId": "fa48ec7d-8621-4b0a-8be7-b2263232db1f"
     }
   },
   "opusProMigrationComplete": true,
@@ -964,6 +978,10 @@
     "tdd": {
       "usageCount": 1,
       "lastUsedAt": 1778134819019
+    },
+    "dispatching-parallel-agents": {
+      "usageCount": 1,
+      "lastUsedAt": 1778347732784
     }
   },
   "remoteControlUpsellSeenCount": 3,

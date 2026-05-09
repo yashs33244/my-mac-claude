@@ -1,0 +1,313 @@
+"""Build batch_7_ready.xlsx and enrich with Apollo emails."""
+import openpyxl
+import requests
+import os
+import re
+import time
+import glob
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+APOLLO_API_KEY = os.getenv("APOLLO_API_KEY")
+XLSX_PATH = os.path.join(os.path.dirname(__file__), "batch_7_ready.xlsx")
+SUBJECT = "Software Engineer — Yash Singh (Full-Stack + AI, SDE at Binocs Bangalore)"
+RESUME  = "https://drive.google.com/file/d/117KGPqnxCYgZ-tvHkL65yx9cbG3jv5AZ/view?usp=drivesdk"
+
+TARGET_TITLES = [
+    "Engineering Manager", "Technical Lead", "Tech Lead",
+    "Head of Engineering", "VP Engineering", "CTO",
+    "Founder", "Co-Founder",
+    "Talent Acquisition", "HR Manager", "Human Resources", "Recruiter",
+]
+GENERIC_PREFIXES = (
+    "careers@", "info@", "hr@", "jobs@", "hiring@", "team@",
+    "contact@", "hello@", "apply@", "admin@", "support@",
+)
+
+# ── company list ────────────────────────────────────────────────────────────
+# (company, role, fit, type)
+COMPANIES = [
+    # Mandatory
+    ("Akamai",              "DevOps / SRE Engineer",             "MNC / Tech Company", "MNC"),
+    ("Texas Instruments",   "SRE / Backend Engineer",            "MNC / Tech Company", "MNC"),
+    ("Honeywell",           "DevOps / SRE Engineer",             "MNC / Tech Company", "MNC"),
+    # DevOps / CI-CD / Infra
+    ("Harness",             "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Pulumi",              "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Spacelift",           "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Codefresh",           "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Buildkite",           "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Fly.io",              "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Render",              "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Teleport",            "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("HashiCorp",           "DevOps / SRE Engineer",             "MNC / Tech Company",  "MNC"),
+    ("PagerDuty",           "SRE / Full-Stack Engineer",         "MNC / Tech Company",  "MNC"),
+    ("Datadog",             "SRE / Full-Stack Engineer",         "MNC / Tech Company",  "MNC"),
+    ("New Relic",           "SRE / Full-Stack Engineer",         "MNC / Tech Company",  "MNC"),
+    ("Dynatrace",           "SRE / Full-Stack Engineer",         "MNC / Tech Company",  "MNC"),
+    ("Grafana Labs",        "Full-Stack / SRE Engineer",         "New Funded Startup",  "Startup"),
+    ("Honeycomb.io",        "Backend / SRE Engineer",            "New Funded Startup",  "Startup"),
+    ("Better Stack",        "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Checkly",             "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    # Security / DevSecOps
+    ("Wiz",                 "SRE / Backend Engineer",            "New Funded Startup",  "Startup"),
+    ("Lacework",            "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Sysdig",              "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Snyk",                "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Aqua Security",       "DevOps / SRE Engineer",             "New Funded Startup",  "Startup"),
+    ("Orca Security",       "Backend / SRE Engineer",            "New Funded Startup",  "Startup"),
+    ("Semgrep",             "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Rubrik",              "SRE / Backend Engineer",            "MNC / Tech Company",  "MNC"),
+    ("Cohesity",            "DevOps / SRE Engineer",             "MNC / Tech Company",  "MNC"),
+    ("CrowdStrike",         "Backend / SRE Engineer",            "MNC / Tech Company",  "MNC"),
+    ("SentinelOne",         "Backend / SRE Engineer",            "MNC / Tech Company",  "MNC"),
+    ("Tenable",             "Backend / SRE Engineer",            "MNC / Tech Company",  "MNC"),
+    ("Veeam",               "DevOps / Backend Engineer",         "MNC / Tech Company",  "MNC"),
+    # Data / Streaming
+    ("Cloudflare",          "Full-Stack / SRE Engineer",         "MNC / Tech Company",  "MNC"),
+    ("Elastic",             "Full-Stack / Backend Engineer",     "MNC / Tech Company",  "MNC"),
+    ("Confluent",           "Backend Engineer",                  "MNC / Tech Company",  "MNC"),
+    ("Databricks",          "Backend / Full-Stack Engineer",     "MNC / Tech Company",  "MNC"),
+    ("Snowflake",           "Backend / SRE Engineer",            "MNC / Tech Company",  "MNC"),
+    ("Airbyte",             "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("Fivetran",            "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("dbt Labs",            "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("Hightouch",           "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Tinybird",            "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("ClickHouse",          "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("Redpanda",            "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("Meilisearch",         "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("Kong",                "Backend / DevOps Engineer",         "New Funded Startup",  "Startup"),
+    # AI / Dev Tools
+    ("Weights & Biases",    "Full-Stack / Forward Deployed Engineer", "New Funded Startup", "Startup"),
+    ("Scale AI",            "Forward Deployed Engineer",         "New Funded Startup",  "Startup"),
+    ("Labelbox",            "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Together AI",         "Full-Stack / Backend Engineer",     "New Funded Startup",  "Startup"),
+    ("Replicate",           "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("Modal",               "DevOps / Backend Engineer",         "New Funded Startup",  "Startup"),
+    ("Codeium",             "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Sourcegraph",         "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    # Frontend / Low-code / Full-stack platforms
+    ("Netlify",             "Full-Stack / Frontend Engineer",    "MNC / Tech Company",  "MNC"),
+    ("Vercel",              "Full-Stack / Frontend Engineer",    "New Funded Startup",  "Startup"),
+    ("Linear",              "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Retool",              "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Appsmith",            "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Tooljet",             "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("NocoDB",              "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("n8n",                 "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Windmill",            "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    # DB / Backend infra
+    ("Supabase",            "Full-Stack / Backend Engineer",     "New Funded Startup",  "Startup"),
+    ("Appwrite",            "Full-Stack / Backend Engineer",     "New Funded Startup",  "Startup"),
+    ("Neon",                "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("PlanetScale",         "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("Turso",               "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    # Payments / Fintech India
+    ("Stripe",              "Backend / Full-Stack Engineer",     "MNC / Tech Company",  "MNC"),
+    ("Twilio",              "Backend Engineer",                  "MNC / Tech Company",  "MNC"),
+    ("Cashfree Payments",   "Backend / Full-Stack Engineer",     "New Funded Startup",  "Startup"),
+    ("Juspay",              "Backend / Full-Stack Engineer",     "New Funded Startup",  "Startup"),
+    ("Setu",                "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Decentro",            "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("Hyperface",           "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Navi Technologies",   "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("MoneyView",           "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    # Indian Startups - other
+    ("Hasura",              "Backend / Full-Stack Engineer",     "New Funded Startup",  "Startup"),
+    ("RudderStack",         "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("DevRev",              "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("BrowserStack",        "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("PostHog",             "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Sprinklr",            "Full-Stack Engineer",               "MNC / Tech Company",  "MNC"),
+    ("WebEngage",           "Backend / Full-Stack Engineer",     "New Funded Startup",  "Startup"),
+    ("MoEngage",            "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Exotel",              "Backend Engineer",                  "New Funded Startup",  "Startup"),
+    ("OfBusiness",          "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Zetwerk",             "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Infra.Market",        "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Plum",                "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Acko",                "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Go Digit",            "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("PharmEasy",           "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    ("Hex Technologies",    "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+    # Enterprise IT (India)
+    ("HCL Technologies",    "Full-Stack / DevOps Engineer",      "MNC / Tech Company",  "MNC"),
+    ("LTIMindtree",         "Full-Stack / DevOps Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Coforge",             "Full-Stack Engineer",               "MNC / Tech Company",  "MNC"),
+    ("Hexaware",            "Full-Stack / DevOps Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Lenskart",            "Full-Stack Engineer",               "New Funded Startup",  "Startup"),
+]
+
+def make_cover(company):
+    return f"""Hi {company} Team,
+
+TL;DR  I love building. I'm not great at pretending I have a million hobbies. I like taking something from 0 -> 1 (or 1 ->100) and being heads-down chasing that goal.
+
+I'm reaching out because I'm genuinely excited about the opportunity to work with {company}. I am highly flexible across DevOps, frontend, and backend engineering, and I believe {company} is one of the best places to explore and contribute across all these domains in a single environment.
+
+I enjoy building real systems end-to-end whether that means infrastructure, deployment, backend services, or user-facing products. My experience has consistently involved shipping production-ready solutions, solving engineering problems, and taking ownership across the full development lifecycle.
+
+That builder mindset is what drives me as an engineer. I'm excited by environments where I can learn fast, contribute broadly, and create meaningful impact through execution.
+
+I would love the opportunity to contribute my skills, adaptability, and energy to {company}.
+
+Best regards,
+Yash Singh
++91 8755-765-125
+{RESUME}"""
+
+# ── Apollo helpers ──────────────────────────────────────────────────────────
+
+def is_generic_email(email):
+    if not email:
+        return True
+    return any(email.lower().startswith(p) for p in GENERIC_PREFIXES)
+
+def name_similarity(a, b):
+    noise = {'inc','ltd','llc','pvt','private','limited','technologies',
+             'technology','solutions','services','labs','ai','co','the'}
+    def tok(s):
+        return set(re.sub(r'[^a-z0-9 ]','',s.lower()).split()) - noise
+    at, bt = tok(a), tok(b)
+    if not at or not bt:
+        return 0
+    return len(at & bt) / max(len(at), len(bt))
+
+def title_priority(title):
+    if not title: return 99
+    tl = title.lower()
+    order = ["engineering manager","head of engineering","vp engineering",
+             "technical lead","tech lead","cto","co-founder","founder",
+             "talent acquisition","hr manager","human resources","recruiter"]
+    for i, t in enumerate(order):
+        if t in tl: return i
+    return 99
+
+def search_apollo(company_name):
+    hdrs = {'Cache-Control':'no-cache','Content-Type':'application/json',
+            'X-Api-Key': APOLLO_API_KEY}
+    for payload in [
+        {"q_organization_name": company_name, "person_titles": TARGET_TITLES,
+         "page":1, "per_page":25},
+        {"q_organization_name": company_name, "page":1, "per_page":25},
+    ]:
+        res = requests.post("https://api.apollo.io/v1/mixed_people/api_search",
+                            headers=hdrs, json=payload)
+        if res.status_code != 200:
+            return None
+        people = res.json().get('people', [])
+        if not people:
+            continue
+
+        scored = []
+        for p in people:
+            org = (p.get('organization') or {}).get('name','')
+            sim = name_similarity(company_name, org)
+            scored.append((sim, title_priority(p.get('title','')), p))
+
+        candidates = [(s,t,p) for s,t,p in scored if s >= 0.5]
+        if not candidates:
+            best_sim = max(s for s,_,_ in scored)
+            if best_sim > 0:
+                candidates = [(s,t,p) for s,t,p in scored if s == best_sim]
+        if not candidates:
+            continue
+
+        candidates.sort(key=lambda x: (-x[0], x[1]))
+        person_id = candidates[0][2]['id']
+
+        mr = requests.post("https://api.apollo.io/v1/people/match",
+                           headers=hdrs, json={"id": person_id})
+        if mr.status_code != 200:
+            continue
+        person = mr.json().get('person', {})
+        email  = person.get('email')
+        if not email or is_generic_email(email):
+            continue
+        return {
+            "name":       person.get('name'),
+            "first_name": person.get('first_name'),
+            "title":      person.get('title'),
+            "email":      email,
+        }
+    return None
+
+# ── Build xlsx ───────────────────────────────────────────────────────────────
+
+def load_existing():
+    existing = set()
+    for f in glob.glob(os.path.join(os.path.dirname(__file__), "batch_*.xlsx")):
+        if "batch_7" in f:
+            continue
+        try:
+            wb = openpyxl.load_workbook(f)
+            ws = wb.active
+            for r in range(2, ws.max_row + 1):
+                v = ws.cell(r, 1).value
+                if v:
+                    existing.add(v.strip().lower())
+        except Exception:
+            pass
+    return existing
+
+def build_and_enrich():
+    existing = load_existing()
+    print(f"Existing companies to skip: {len(existing)}")
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(['company','website','location','role','experience','email',
+               'fit','type','subject','cover_letter','status',
+               'contact_name','contact_title'])
+
+    filtered = [(c,r,f,t) for c,r,f,t in COMPANIES
+                if c.strip().lower() not in existing]
+    print(f"Companies to process: {len(filtered)}")
+
+    # Write all rows first with placeholder emails
+    for company, role, fit, ctype in filtered:
+        ws.append([company, None, 'India', role, '0-2 years', None,
+                   fit, ctype, SUBJECT, make_cover(company),
+                   'NEW', None, None])
+
+    wb.save(XLSX_PATH)
+    print(f"Saved skeleton with {len(filtered)} rows. Starting Apollo enrichment...\n")
+
+    total = len(filtered)
+    enriched = 0
+
+    for r in range(2, ws.max_row + 1):
+        company = ws.cell(r, 1).value
+        print(f"[{r-1}/{total}] {company}")
+
+        contact = search_apollo(company)
+        if contact:
+            ws.cell(r, 6).value  = contact['email']
+            ws.cell(r, 12).value = contact['name']
+            ws.cell(r, 13).value = contact['title']
+            enriched += 1
+            print(f"  ✓ {contact['name']} ({contact['title']}) — {contact['email']}")
+
+            cl = ws.cell(r, 10).value
+            first = contact['first_name']
+            if cl and first:
+                cl = re.sub(r'^Hi .+?,', f'Hi {first},', cl, count=1)
+                ws.cell(r, 10).value = cl
+        else:
+            print(f"  ✗ No personal email found")
+
+        if (r - 1) % 5 == 0:
+            wb.save(XLSX_PATH)
+            print(f"  — saved ({r-1}/{total}) —")
+
+        time.sleep(1.2)
+
+    wb.save(XLSX_PATH)
+    print(f"\nDone. Total: {total} | Enriched: {enriched} | Failed: {total - enriched}")
+
+if __name__ == "__main__":
+    if not APOLLO_API_KEY:
+        print("ERROR: APOLLO_API_KEY not found in .env")
+    else:
+        build_and_enrich()
