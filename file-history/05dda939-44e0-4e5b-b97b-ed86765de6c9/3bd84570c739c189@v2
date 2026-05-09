@@ -1,0 +1,127 @@
+"""initial_schema
+
+Revision ID: ffd07cb54751
+Revises:
+Create Date: 2026-05-09
+"""
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+
+revision = "ffd07cb54751"
+down_revision = None
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.create_table(
+        "users",
+        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
+        sa.Column("email", sa.String(), nullable=False),
+        sa.Column("name", sa.String(), nullable=True),
+        sa.Column("google_id", sa.String(), nullable=True),
+        sa.Column(
+            "gmail_oauth_token",
+            sa.JSON().with_variant(postgresql.JSONB(), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column(
+            "google_profile",
+            sa.JSON().with_variant(postgresql.JSONB(), "postgresql"),
+            nullable=False,
+            server_default="{}",
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+    )
+    op.create_index("ix_users_email", "users", ["email"], unique=True)
+    op.create_index("ix_users_google_id", "users", ["google_id"], unique=True)
+
+    op.create_table(
+        "campaigns",
+        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
+        sa.Column("user_id", sa.Uuid(as_uuid=True),
+                  sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("type", sa.String(), nullable=False),
+        sa.Column("status", sa.String(), nullable=False, server_default="draft"),
+        sa.Column(
+            "config_json",
+            sa.JSON().with_variant(postgresql.JSONB(), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+    )
+    op.create_index("ix_campaigns_user_id", "campaigns", ["user_id"])
+
+    op.create_table(
+        "campaign_sessions",
+        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
+        sa.Column("campaign_id", sa.Uuid(as_uuid=True),
+                  sa.ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("status", sa.String(), nullable=False, server_default="active"),
+        sa.Column(
+            "chat_history",
+            sa.JSON().with_variant(postgresql.JSONB(), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column(
+            "extracted_params",
+            sa.JSON().with_variant(postgresql.JSONB(), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+    )
+    op.create_index("ix_campaign_sessions_campaign_id", "campaign_sessions", ["campaign_id"])
+
+    op.create_table(
+        "contacts",
+        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
+        sa.Column("campaign_id", sa.Uuid(as_uuid=True),
+                  sa.ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("company", sa.String(), nullable=True),
+        sa.Column("person_name", sa.String(), nullable=True),
+        sa.Column("email", sa.String(), nullable=False),
+        sa.Column("title", sa.String(), nullable=True),
+        sa.Column("source", sa.String(), nullable=True),
+        sa.Column("bounce_risk", sa.Boolean(), nullable=False, server_default="false"),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+    )
+    op.create_index("ix_contacts_campaign_id", "contacts", ["campaign_id"])
+
+    op.create_table(
+        "email_jobs",
+        sa.Column("id", sa.Uuid(as_uuid=True), primary_key=True),
+        sa.Column("campaign_id", sa.Uuid(as_uuid=True),
+                  sa.ForeignKey("campaigns.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("contact_id", sa.Uuid(as_uuid=True),
+                  sa.ForeignKey("contacts.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("subject", sa.String(), nullable=True),
+        sa.Column("body", sa.Text(), nullable=True),
+        sa.Column("draft_status", sa.String(), nullable=False, server_default="pending"),
+        sa.Column("status", sa.String(), nullable=False, server_default="draft"),
+        sa.Column("sent_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False,
+                  server_default=sa.text("now()")),
+    )
+    op.create_index("ix_email_jobs_campaign_id", "email_jobs", ["campaign_id"])
+    op.create_index("ix_email_jobs_contact_id", "email_jobs", ["contact_id"])
+
+
+def downgrade() -> None:
+    op.drop_table("email_jobs")
+    op.drop_table("contacts")
+    op.drop_table("campaign_sessions")
+    op.drop_table("campaigns")
+    op.drop_table("users")
