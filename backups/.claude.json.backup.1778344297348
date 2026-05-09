@@ -35,7 +35,7 @@
     "default-permission-mode-config": 12,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 42,
+  "promptQueueUseCount": 46,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_amber_sentinel": true,
@@ -980,8 +980,8 @@
       "lastUsedAt": 1777976145361
     },
     "token-efficient-rules": {
-      "usageCount": 2,
-      "lastUsedAt": 1777980312850
+      "usageCount": 3,
+      "lastUsedAt": 1778343484717
     },
     "grill-me": {
       "usageCount": 1,
@@ -1005,5 +1005,5 @@
     }
   },
   "remoteControlUpsellSeenCount": 3,
-  "lastPlanModeUse": 1778135518125
+  "lastPlanModeUse": 1778343413631
 }
