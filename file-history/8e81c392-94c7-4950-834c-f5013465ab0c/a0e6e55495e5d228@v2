@@ -1,0 +1,70 @@
+from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+from uuid import UUID
+import json
+
+from app.deps import get_db, get_current_user
+from app.schemas.chat import ChatMessageRequest
+from app.services.chat_service import ChatService
+from app.repositories.campaign_repository import CampaignRepository
+from app.services.llm_service import LLMService
+from app.api.v1.campaigns import get_llm_service
+from app.models.user import User
+
+router = APIRouter(prefix="/campaigns", tags=["chat"])
+
+
+@router.post("/{campaign_id}/chat")
+async def send_chat_message(
+    campaign_id: UUID,
+    req: ChatMessageRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    llm: LLMService = Depends(get_llm_service),
+):
+    chat_service = ChatService(CampaignRepository(db), llm)
+
+    async def event_stream():
+        async for event in chat_service.process_message(campaign_id, req.message, user.id):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.get("/{campaign_id}/chat")
+async def get_chat_history(
+    campaign_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+    llm: LLMService = Depends(get_llm_service),
+):
+    chat_service = ChatService(CampaignRepository(db), llm)
+    session = await chat_service.get_session(campaign_id)
+    return {
+        "session_id": session.id,
+        "status": session.status,
+        "chat_history": session.chat_history,
+        "extracted_params": session.extracted_params,
+    }
+
+
+@router.get("/{campaign_id}/stream")
+async def campaign_stream(
+    campaign_id: UUID,
+    user: User = Depends(get_current_user),
+):
+    from app.core.sse import subscribe, unsubscribe
+
+    async def event_generator():
+        q = subscribe(str(campaign_id))
+        try:
+            while True:
+                event = await q.get()
+                yield f"data: {json.dumps(event)}\n\n"
+                if event.get("type") == "complete":
+                    break
+        finally:
+            unsubscribe(str(campaign_id), q)
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")

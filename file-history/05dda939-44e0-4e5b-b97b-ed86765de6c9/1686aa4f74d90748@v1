@@ -1,288 +1,104 @@
 "use client";
 
-import React, { useState, useEffect, use } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/Button";
+import React from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Icon } from "@/components/ui/Icon";
+import { Sidebar } from "@/components/layout/Sidebar";
+import { Topbar } from "@/components/layout/Topbar";
 
-interface ProcessingPageProps {
-  params: Promise<{ id: string }>;
-}
-
-interface ProgressEvent {
-  type: string;
-  step?: string;
-  message?: string;
-  progress?: number;
-  contact?: { company: string; person_name: string; title: string };
-  count?: number;
-  total_contacts?: number;
-  total_drafts?: number;
-}
-
-const AGENT_STEPS = [
-  { id: "research", label: "Contact Research", icon: "🔍", desc: "Finding matching contacts" },
-  { id: "verify", label: "Email Verification", icon: "✉️", desc: "Verifying email addresses" },
-  { id: "drafting", label: "Email Drafting", icon: "✍️", desc: "Generating personalized emails" },
-  { id: "complete", label: "Quality Review", icon: "✅", desc: "Final review and cleanup" },
-];
-
-export default function ProcessingPage({ params }: ProcessingPageProps) {
-  const { id } = use(params);
+export default function ProcessingPage() {
+  const { id } = useParams<{ id: string }>();
   const router = useRouter();
-  const [progress, setProgress] = useState(0);
-  const [currentStep, setCurrentStep] = useState("research");
-  const [messages, setMessages] = useState<string[]>([]);
-  const [done, setDone] = useState(false);
-  const [contacts, setContacts] = useState<Array<{ company: string; person_name: string; title: string }>>([]);
+  const [progress, setProgress] = React.useState(0);
+  const [complete, setComplete] = React.useState(false);
 
-  useEffect(() => {
-    const evtSource = new EventSource(`/api/v1/campaigns/${id}/stream`);
+  const agents = [
+    { id: "research", title: "Researching companies", desc: "Pulling firmographics, recent news, hiring signals", icon: "globe" },
+    { id: "contacts", title: "Finding decision-makers", desc: "Apollo lookup · 142 of 150 found", icon: "user" },
+    { id: "writer",   title: "Drafting personalized emails", desc: "GPT-5 · using your template + per-contact context", icon: "edit" },
+    { id: "verify",   title: "Verifying deliverability", desc: "MX records, syntax, role-account flags", icon: "check" },
+  ];
 
-    evtSource.onmessage = (e) => {
+  React.useEffect(() => {
+    const t = setInterval(() => setProgress((p) => {
+      if (p >= 100) { clearInterval(t); setComplete(true); return 100; }
+      return Math.min(100, p + 1.5);
+    }), 80);
+    return () => clearInterval(t);
+  }, []);
+
+  React.useEffect(() => {
+    if (!id) return;
+    const es = new EventSource(`/api/v1/campaigns/${id}/stream`);
+    es.onmessage = (e) => {
       try {
-        const event: ProgressEvent = JSON.parse(e.data);
-
-        if (event.type === "progress") {
-          setProgress(event.progress || 0);
-          setCurrentStep(event.step || "research");
-          if (event.message) {
-            setMessages((m) => [...m.slice(-8), event.message!]);
-          }
-        } else if (event.type === "contact_found" && event.contact) {
-          setContacts((c) => [...c.slice(-5), event.contact!]);
-        } else if (event.type === "complete") {
-          setProgress(100);
-          setDone(true);
-          evtSource.close();
-        }
-      } catch {
-        // ignore parse errors
-      }
+        const data = JSON.parse(e.data);
+        if (data.type === "complete") { setComplete(true); setProgress(100); es.close(); }
+      } catch {}
     };
-
-    evtSource.onerror = () => {
-      evtSource.close();
-      setDone(true);
-    };
-
-    return () => evtSource.close();
+    return () => es.close();
   }, [id]);
 
-  const activeStepIndex = AGENT_STEPS.findIndex((s) => s.id === currentStep);
+  const stepIdx = Math.min(agents.length - 1, Math.floor(progress / 25));
 
   return (
-    <div
-      style={{
-        height: "100vh",
-        background: "var(--bg)",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-        overflow: "hidden",
-      }}
-    >
-      {/* Aurora blobs */}
-      <div
-        className="aurora-blob-1"
-        style={{
-          position: "absolute",
-          width: "500px",
-          height: "500px",
-          top: "-50px",
-          left: "-50px",
-          background: "radial-gradient(circle, #7dd3a028 0%, transparent 70%)",
-          filter: "blur(70px)",
-          borderRadius: "50%",
-          pointerEvents: "none",
-        }}
-      />
-
-      <div style={{ position: "relative", zIndex: 1, width: "100%", maxWidth: "560px", padding: "0 24px" }}>
-        {/* Header */}
-        <div style={{ textAlign: "center", marginBottom: "40px" }}>
-          {!done ? (
+    <div className="shell">
+      <Sidebar active="new" />
+      <div className="main">
+        <Topbar
+          crumb={
             <>
-              <div
-                style={{
-                  width: "48px",
-                  height: "48px",
-                  margin: "0 auto 16px",
-                  border: "3px solid var(--border-strong)",
-                  borderTopColor: "var(--accent)",
-                  borderRadius: "50%",
-                  animation: "spin-slow 0.9s linear infinite",
-                }}
-              />
-              <h1 style={{ fontSize: "22px", fontWeight: 700, color: "var(--fg)", marginBottom: "8px" }}>
+              <span className="muted">New campaign</span>
+              <Icon name="chev_r" size={11} className="sep" style={{ color: "var(--fg-3)" }} />
+              <span>B2B sales outreach</span>
+              <span className="badge b-ready" style={{ marginLeft: 8 }}><span className="badge-dot" />Processing</span>
+            </>
+          }
+          right={<button className="btn btn-sm">Run in background</button>}
+        />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32, gap: 24, overflow: "auto" }}>
+          <div style={{ width: "100%", maxWidth: 560 }}>
+            <div style={{ textAlign: "center", marginBottom: 28 }}>
+              <div style={{ fontSize: 11, fontWeight: 500, letterSpacing: "0.06em", textTransform: "uppercase", color: "var(--accent)", marginBottom: 10 }}>
+                <span style={{ display: "inline-block", width: 6, height: 6, borderRadius: "50%", background: "var(--accent)", marginRight: 6, animation: "pulse 1.4s infinite" }} />
                 Building your campaign
-              </h1>
-              <p style={{ fontSize: "14px", color: "var(--fg-2)" }}>
-                Our AI agents are researching contacts and crafting personalized emails
-              </p>
-            </>
-          ) : (
-            <>
-              <div
-                style={{
-                  width: "48px",
-                  height: "48px",
-                  margin: "0 auto 16px",
-                  background: "var(--accent-dim)",
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "24px",
-                }}
-              >
-                ✓
               </div>
-              <h1 style={{ fontSize: "22px", fontWeight: 700, color: "var(--fg)", marginBottom: "8px" }}>
-                Campaign ready!
-              </h1>
-              <p style={{ fontSize: "14px", color: "var(--fg-2)" }}>
-                Your emails are drafted and waiting for review
-              </p>
-            </>
-          )}
-        </div>
-
-        {/* Progress bar */}
-        <div
-          style={{
-            height: "4px",
-            background: "var(--bg-3)",
-            borderRadius: "2px",
-            overflow: "hidden",
-            marginBottom: "32px",
-          }}
-        >
-          <div
-            style={{
-              height: "100%",
-              background: "var(--accent)",
-              borderRadius: "2px",
-              width: `${progress}%`,
-              transition: "width 0.5s ease",
-            }}
-          />
-        </div>
-
-        {/* Agent steps */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "24px" }}>
-          {AGENT_STEPS.map((s, i) => {
-            const isCurrent = s.id === currentStep && !done;
-            const isPast = i < activeStepIndex || done;
-            return (
-              <div
-                key={s.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "14px",
-                  padding: "12px 16px",
-                  background: isCurrent ? "var(--bg-2)" : "transparent",
-                  border: `1px solid ${isCurrent ? "var(--border-strong)" : "transparent"}`,
-                  borderRadius: "10px",
-                  transition: "all 0.3s",
-                }}
-              >
-                <div style={{ fontSize: "20px", opacity: isPast || isCurrent ? 1 : 0.3 }}>
-                  {isPast && !isCurrent ? "✅" : s.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: isCurrent ? 600 : 500,
-                      color: isCurrent ? "var(--fg)" : isPast ? "var(--fg-1)" : "var(--fg-3)",
-                    }}
-                  >
-                    {s.label}
-                  </div>
-                  <div style={{ fontSize: "11px", color: "var(--fg-3)", marginTop: "2px" }}>{s.desc}</div>
-                </div>
-                {isCurrent && (
-                  <div
-                    style={{
-                      width: "8px",
-                      height: "8px",
-                      background: "var(--accent)",
-                      borderRadius: "50%",
-                      animation: "pulse-dot 1.2s ease-in-out infinite",
-                    }}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Live feed */}
-        {contacts.length > 0 && (
-          <div
-            style={{
-              background: "var(--bg-2)",
-              border: "1px solid var(--border)",
-              borderRadius: "10px",
-              padding: "12px",
-              marginBottom: "16px",
-            }}
-          >
-            <div style={{ fontSize: "11px", color: "var(--fg-3)", marginBottom: "8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-              Recent Contacts Found
+              <h2 style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-0.01em", margin: 0 }}>{Math.round(progress)}% complete</h2>
+              <p style={{ fontSize: 13, color: "var(--fg-2)", marginTop: 8 }}>~{Math.max(1, Math.ceil((100 - progress) / 30))} min remaining · You can leave this page</p>
             </div>
-            {contacts.slice(-3).map((c, i) => (
-              <div key={i} style={{ display: "flex", gap: "8px", padding: "4px 0", borderBottom: i < 2 ? "1px solid var(--border)" : "none" }}>
-                <span style={{ fontSize: "12px", color: "var(--accent)", fontWeight: 500 }}>{c.company}</span>
-                <span style={{ fontSize: "12px", color: "var(--fg-2)" }}>{c.person_name}</span>
-                <span style={{ fontSize: "12px", color: "var(--fg-3)" }}>— {c.title}</span>
-              </div>
-            ))}
-          </div>
-        )}
 
-        {/* Messages */}
-        {messages.length > 0 && (
-          <div
-            style={{
-              fontSize: "12px",
-              color: "var(--fg-3)",
-              textAlign: "center",
-              marginBottom: "16px",
-            }}
-          >
-            {messages[messages.length - 1]}
-          </div>
-        )}
+            <div style={{ height: 4, background: "var(--bg-2)", borderRadius: 2, overflow: "hidden", marginBottom: 24 }}>
+              <div style={{ height: "100%", background: "var(--accent)", width: `${progress}%`, transition: "width .3s" }} />
+            </div>
 
-        {/* Actions */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", alignItems: "center" }}>
-          {done && (
-            <Button
-              variant="primary"
-              size="lg"
-              onClick={() => router.push(`/campaign/${id}/dashboard`)}
-              style={{ width: "100%", justifyContent: "center" }}
-            >
-              View Campaign →
-            </Button>
-          )}
-          <button
-            onClick={() => router.push(`/campaign/${id}/dashboard`)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "var(--fg-3)",
-              fontSize: "12px",
-              cursor: "pointer",
-              fontFamily: "var(--font-ui)",
-            }}
-          >
-            Skip to dashboard
-          </button>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {agents.map((a, i) => {
+                const done = i < stepIdx;
+                const active = i === stepIdx;
+                return (
+                  <div key={a.id} style={{ display: "flex", gap: 12, padding: 12, background: active ? "var(--bg-1)" : "transparent", border: "0.5px solid", borderColor: active ? "var(--accent)" : "var(--border)", borderRadius: 8, alignItems: "center" }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 7, background: done ? "var(--accent-dim)" : active ? "var(--bg-2)" : "var(--bg-1)", border: "0.5px solid", borderColor: done ? "var(--accent)" : "var(--border)", display: "grid", placeItems: "center", color: done ? "var(--accent)" : active ? "var(--fg)" : "var(--fg-3)", flexShrink: 0 }}>
+                      {done ? <Icon name="check" size={14} stroke={2.4} /> : active ? <span className="spinner" /> : <Icon name={a.icon} size={13} />}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12.5, fontWeight: 500, color: done || active ? "var(--fg)" : "var(--fg-2)" }}>{a.title}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--fg-3)", marginTop: 2 }}>{a.desc}</div>
+                    </div>
+                    {done && <span style={{ fontSize: 10.5, color: "var(--fg-3)", fontFamily: "var(--font-mono)" }}>{(8 + i * 6).toFixed(1)}s</span>}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "center", marginTop: 20, gap: 10 }}>
+              {complete && (
+                <button className="btn btn-primary btn-sm" onClick={() => router.push(`/campaign/${id}/dashboard`)}>
+                  <Icon name="arrow_r" size={12} />View Campaign
+                </button>
+              )}
+              <button className="btn btn-ghost btn-sm" onClick={() => router.push(`/campaign/${id}/dashboard`)}>Skip to dashboard →</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

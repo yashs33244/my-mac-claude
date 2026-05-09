@@ -1,0 +1,79 @@
+import pytest
+import uuid
+from app.models.campaign import Campaign
+from app.models.campaign_session import CampaignSession
+from app.models.contact import Contact
+from app.models.email_job import EmailJob
+
+
+async def _seed_campaign(db_session, user):
+    c = Campaign(user_id=user.id, type="b2b", status="ready")
+    db_session.add(c)
+    await db_session.flush()
+
+    session = CampaignSession(campaign_id=c.id, status="completed", chat_history=[], extracted_params={})
+    db_session.add(session)
+
+    contact = Contact(
+        campaign_id=c.id,
+        company="Acme",
+        person_name="Alice",
+        email="alice@acme.com",
+        title="VP Sales",
+        source="apollo",
+        bounce_risk=False,
+    )
+    db_session.add(contact)
+    await db_session.flush()
+
+    job = EmailJob(
+        campaign_id=c.id,
+        contact_id=contact.id,
+        subject="Hello from tests",
+        body="Test body",
+        draft_status="pending",
+        status="draft",
+    )
+    db_session.add(job)
+    await db_session.flush()
+
+    return c, contact, job
+
+
+async def test_list_outreach_returns_items(client, db_session, test_user):
+    campaign, contact, job = await _seed_campaign(db_session, test_user)
+    resp = await client.get(f"/api/v1/campaigns/{campaign.id}/outreach")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["outreaches"][0]["contact"]["email"] == "alice@acme.com"
+    assert data["outreaches"][0]["subject"] == "Hello from tests"
+
+
+async def test_list_outreach_empty_when_no_jobs(client, db_session, test_user):
+    c = Campaign(user_id=test_user.id, type="b2b", status="draft")
+    db_session.add(c)
+    await db_session.flush()
+
+    resp = await client.get(f"/api/v1/campaigns/{c.id}/outreach")
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 0
+
+
+async def test_patch_outreach_updates_draft_status(client, db_session, test_user):
+    campaign, contact, job = await _seed_campaign(db_session, test_user)
+    resp = await client.patch(
+        f"/api/v1/campaigns/{campaign.id}/outreach/{job.id}",
+        json={"draft_status": "approved"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["draft_status"] == "approved"
+
+
+async def test_patch_outreach_updates_subject_and_body(client, db_session, test_user):
+    campaign, contact, job = await _seed_campaign(db_session, test_user)
+    resp = await client.patch(
+        f"/api/v1/campaigns/{campaign.id}/outreach/{job.id}",
+        json={"subject": "New Subject", "body": "New body content"},
+    )
+    assert resp.status_code == 200

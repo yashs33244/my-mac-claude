@@ -1,5 +1,5 @@
 {
-  "numStartups": 19,
+  "numStartups": 20,
   "hasSeenTasksHint": true,
   "tipsHistory": {
     "new-user-warmup": 9,
@@ -35,7 +35,7 @@
     "default-permission-mode-config": 12,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 45,
+  "promptQueueUseCount": 58,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_amber_sentinel": true,
@@ -824,39 +824,22 @@
       "hasClaudeMdExternalIncludesApproved": false,
       "hasClaudeMdExternalIncludesWarningShown": false,
       "exampleFiles": [],
-      "lastGracefulShutdown": true,
+      "lastGracefulShutdown": false,
       "hasCompletedProjectOnboarding": true,
-      "lastCost": 9.670152,
-      "lastAPIDuration": 2320632,
-      "lastAPIDurationWithoutRetries": 2317123,
-      "lastToolDuration": 7932956,
-      "lastDuration": 42143032,
-      "lastLinesAdded": 7126,
-      "lastLinesRemoved": 2029,
-      "lastTotalInputTokens": 2387,
-      "lastTotalOutputTokens": 175695,
-      "lastTotalCacheCreationInputTokens": 810486,
-      "lastTotalCacheReadInputTokens": 13298065,
+      "lastCost": 0,
+      "lastAPIDuration": 0,
+      "lastAPIDurationWithoutRetries": 0,
+      "lastToolDuration": 0,
+      "lastDuration": 5213,
+      "lastLinesAdded": 0,
+      "lastLinesRemoved": 0,
+      "lastTotalInputTokens": 0,
+      "lastTotalOutputTokens": 0,
+      "lastTotalCacheCreationInputTokens": 0,
+      "lastTotalCacheReadInputTokens": 0,
       "lastTotalWebSearchRequests": 0,
-      "lastModelUsage": {
-        "claude-haiku-4-5-20251001": {
-          "inputTokens": 468,
-          "outputTokens": 24,
-          "cacheReadInputTokens": 0,
-          "cacheCreationInputTokens": 0,
-          "webSearchRequests": 0,
-          "costUSD": 0.000588
-        },
-        "claude-sonnet-4-6": {
-          "inputTokens": 1919,
-          "outputTokens": 175671,
-          "cacheReadInputTokens": 13298065,
-          "cacheCreationInputTokens": 810486,
-          "webSearchRequests": 0,
-          "costUSD": 9.669564
-        }
-      },
-      "lastSessionId": "05dda939-44e0-4e5b-b97b-ed86765de6c9",
+      "lastModelUsage": {},
+      "lastSessionId": "8e81c392-94c7-4950-834c-f5013465ab0c",
       "lastSessionMetrics": {
         "frame_duration_ms_count": 5535,
         "frame_duration_ms_min": 0.07366700000011406,
@@ -879,9 +862,7 @@
         "hook_duration_ms_p50": 0,
         "hook_duration_ms_p95": 227.04999999998716,
         "hook_duration_ms_p99": 5189.339999999999
-      },
-      "lastFpsAverage": 0.24,
-      "lastFpsLow1Pct": 71.51
+      }
     },
     "/Users/tanishqsingh/Desktop/yash desktop files/outreach-yash/outreach": {
       "allowedTools": [],

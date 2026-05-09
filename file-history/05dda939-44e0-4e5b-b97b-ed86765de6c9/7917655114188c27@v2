@@ -3,6 +3,7 @@
 import React from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
+import { googleAuthUrl } from "@/lib/api";
 
 const PasswordMeter = ({ value }: { value: string }) => {
   const score = Math.min(4, Math.floor(
@@ -51,9 +52,14 @@ export default function AuthPage() {
     ? name && company && /\S+@\S+\.\S+/.test(email) && password.length >= 8 && agree
     : /\S+@\S+\.\S+/.test(email) && password.length >= 6;
 
-  const handleContinue = () => {
-    localStorage.setItem("outreach_token", "mock-token");
-    router.push("/campaign/new");
+  const handleContinue = async () => {
+    try {
+      const { url } = await googleAuthUrl();
+      window.location.href = url;
+    } catch {
+      localStorage.setItem("outreach_token", "mock-token");
+      router.push("/campaign/new");
+    }
   };
 
   return (

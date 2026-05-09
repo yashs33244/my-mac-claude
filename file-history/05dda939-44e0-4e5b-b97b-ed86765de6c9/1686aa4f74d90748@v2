@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
+import { openCampaignStream } from "@/lib/api";
 
 export default function ProcessingPage() {
   const { id } = useParams<{ id: string }>();
@@ -29,14 +30,14 @@ export default function ProcessingPage() {
 
   React.useEffect(() => {
     if (!id) return;
-    const es = new EventSource(`/api/v1/campaigns/${id}/stream`);
-    es.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-        if (data.type === "complete") { setComplete(true); setProgress(100); es.close(); }
-      } catch {}
-    };
-    return () => es.close();
+    const close = openCampaignStream(
+      id,
+      (event) => {
+        if (event.type === "complete") { setComplete(true); setProgress(100); }
+      },
+      () => { setComplete(true); setProgress(100); }
+    );
+    return close;
   }, [id]);
 
   const stepIdx = Math.min(agents.length - 1, Math.floor(progress / 25));

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Topbar } from "@/components/layout/Topbar";
 import { Icon } from "@/components/ui/Icon";
+import { listCampaigns } from "@/lib/api";
 
 interface Campaign {
   id: string;
@@ -26,8 +27,7 @@ export default function DashboardPage() {
   React.useEffect(() => {
     const token = typeof window !== "undefined" ? localStorage.getItem("outreach_token") : null;
     if (!token) { router.replace("/auth"); return; }
-    fetch("/api/v1/campaigns")
-      .then((r) => r.json())
+    listCampaigns()
       .then((data) => { setCampaigns(data.campaigns || []); setLoading(false); })
       .catch(() => setLoading(false));
   }, [router]);

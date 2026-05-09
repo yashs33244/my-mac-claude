@@ -1,0 +1,48 @@
+from typing import AsyncGenerator
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from app.config import settings
+from app.core.security import decode_token
+from app.repositories.user_repository import UserRepository
+from fastapi import Depends, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+engine = create_async_engine(settings.DATABASE_URL, echo=False)
+AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        yield session
+
+
+security = HTTPBearer()
+
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: AsyncSession = Depends(get_db),
+):
+    import jwt as _jwt
+
+    try:
+        payload = decode_token(credentials.credentials)
+    except (_jwt.ExpiredSignatureError, _jwt.InvalidTokenError):
+        raise HTTPException(
+            status_code=401,
+            detail={"error": {"code": "UNAUTHORIZED", "message": "Invalid or expired token"}},
+        )
+
+    if payload.get("token_type") != "access":
+        raise HTTPException(
+            status_code=401,
+            detail={"error": {"code": "UNAUTHORIZED", "message": "Invalid token type"}},
+        )
+
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_id(payload["sub"])
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail={"error": {"code": "UNAUTHORIZED", "message": "User not found"}},
+        )
+    return user
