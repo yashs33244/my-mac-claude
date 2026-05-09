@@ -1,5 +1,5 @@
 {
-  "numStartups": 21,
+  "numStartups": 22,
   "hasSeenTasksHint": true,
   "tipsHistory": {
     "new-user-warmup": 9,
@@ -21,7 +21,7 @@
     "continue": 18,
     "shift-tab": 18,
     "image-paste": 7,
-    "custom-agents": 7,
+    "custom-agents": 22,
     "agent-flag": 7,
     "desktop-app": 8,
     "desktop-shortcut": 8,
@@ -35,7 +35,7 @@
     "default-permission-mode-config": 12,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 62,
+  "promptQueueUseCount": 66,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_amber_sentinel": true,
@@ -855,7 +855,21 @@
       "projectOnboardingSeenCount": 0,
       "hasClaudeMdExternalIncludesApproved": false,
       "hasClaudeMdExternalIncludesWarningShown": false,
-      "lastGracefulShutdown": false
+      "lastGracefulShutdown": false,
+      "lastCost": 0,
+      "lastAPIDuration": 0,
+      "lastAPIDurationWithoutRetries": 0,
+      "lastToolDuration": 0,
+      "lastDuration": 5526,
+      "lastLinesAdded": 0,
+      "lastLinesRemoved": 0,
+      "lastTotalInputTokens": 0,
+      "lastTotalOutputTokens": 0,
+      "lastTotalCacheCreationInputTokens": 0,
+      "lastTotalCacheReadInputTokens": 0,
+      "lastTotalWebSearchRequests": 0,
+      "lastModelUsage": {},
+      "lastSessionId": "fa48ec7d-8621-4b0a-8be7-b2263232db1f"
     }
   },
   "opusProMigrationComplete": true,
@@ -916,7 +930,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1778342918469
+      "timestamp": 1778346606247
     }
   },
   "closedIssuesLastChecked": 1778342917879,
@@ -964,8 +978,13 @@
     "tdd": {
       "usageCount": 1,
       "lastUsedAt": 1778134819019
+    },
+    "dispatching-parallel-agents": {
+      "usageCount": 1,
+      "lastUsedAt": 1778347732784
     }
   },
   "remoteControlUpsellSeenCount": 3,
-  "lastPlanModeUse": 1778343413631
+  "lastPlanModeUse": 1778343413631,
+  "lspRecommendationIgnoredCount": 1
 }
