@@ -1,0 +1,77 @@
+from fastapi import APIRouter, Depends
+from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
+
+from app.deps import get_db, get_current_user
+from app.models.user import User
+
+router = APIRouter(prefix="/settings", tags=["settings"])
+
+FREE_MODELS = [
+    {"id": "google/gemma-4-31b-it:free", "name": "Google Gemma 4 31B", "context_length": 262144, "provider": "openrouter", "free": True},
+    {"id": "qwen/qwen3-next-80b-a3b-instruct:free", "name": "Qwen3 Next 80B", "context_length": 262144, "provider": "openrouter", "free": True},
+    {"id": "nvidia/nemotron-3-super-120b-a12b:free", "name": "NVIDIA Nemotron 3 Super", "context_length": 262144, "provider": "openrouter", "free": True},
+    {"id": "minimax/minimax-m2.5:free", "name": "MiniMax M2.5", "context_length": 196608, "provider": "openrouter", "free": True},
+    {"id": "gpt-4o", "name": "GPT-4o", "context_length": 128000, "provider": "openai", "free": False},
+    {"id": "gpt-4o-mini", "name": "GPT-4o Mini", "context_length": 128000, "provider": "openai", "free": False},
+    {"id": "claude-sonnet-4-5", "name": "Claude Sonnet 4.5", "context_length": 200000, "provider": "anthropic", "free": False},
+    {"id": "gemini-2.0-flash", "name": "Gemini 2.0 Flash", "context_length": 1048576, "provider": "gemini", "free": False},
+]
+
+
+def _mask_key(key: str) -> str:
+    """Return last 4 chars of a key for hinting."""
+    return key[-4:] if key and len(key) >= 4 else ""
+
+
+@router.get("")
+async def get_settings(
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    s = user.settings or {}
+    openrouter_key = s.get("openrouter_key", "")
+    openai_key = s.get("openai_key", "")
+    anthropic_key = s.get("anthropic_key", "")
+    gemini_key = s.get("gemini_key", "")
+
+    return {
+        "provider": s.get("provider", "openrouter"),
+        "model": s.get("model", "google/gemma-4-31b-it:free"),
+        "has_openrouter_key": bool(openrouter_key),
+        "openrouter_key_hint": f"...{_mask_key(openrouter_key)}" if openrouter_key else "",
+        "has_openai_key": bool(openai_key),
+        "has_anthropic_key": bool(anthropic_key),
+        "has_gemini_key": bool(gemini_key),
+    }
+
+
+@router.put("")
+async def update_settings(
+    body: dict,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, bool]:
+    s = dict(user.settings or {})
+
+    if "provider" in body and body["provider"]:
+        s["provider"] = body["provider"]
+    if "model" in body and body["model"]:
+        s["model"] = body["model"]
+
+    # Only update keys if provided and non-empty
+    for key_field in ("openrouter_key", "openai_key", "anthropic_key", "gemini_key"):
+        if key_field in body and body[key_field]:
+            s[key_field] = body[key_field]
+
+    user.settings = s
+    db.add(user)
+    await db.commit()
+
+    return {"success": True}
+
+
+@router.get("/models")
+async def list_models(
+    user: User = Depends(get_current_user),
+) -> dict[str, list]:
+    return {"models": FREE_MODELS}
