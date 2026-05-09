@@ -1,0 +1,102 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## What This Is
+
+A specialized MVP build of 3D Slicer focused on a single workflow: loading DICOM medical imaging data, segmenting it, and exporting to STL. Most upstream Slicer features are disabled via `-DSlicer_BUILD_WORKFLOW_MVP=ON`.
+
+## Build
+
+**Full superbuild (first time):**
+```bash
+mkdir -p build-mvp
+cmake -S . -B build-mvp \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DSlicer_BUILD_WORKFLOW_MVP=ON \
+  -DSlicer_SUPERBUILD=ON \
+  -DQt5_DIR=$(brew --prefix qt@5)/lib/cmake/Qt5
+cmake --build build-mvp --parallel $(sysctl -n hw.ncpu)
+```
+
+**Incremental rebuild after source changes:**
+```bash
+cmake --build build-mvp/Slicer-build --parallel $(sysctl -n hw.ncpu)
+```
+
+**Package (DMG):**
+```bash
+cmake --build build-mvp/Slicer-build --target package --parallel $(sysctl -n hw.ncpu)
+```
+
+**Requirements:** CMake 3.20.6–3.24.x (avoid 3.21.0 and 3.25.0–3.25.2), Qt 5.15, Python 3.12, Xcode CLT.
+
+## Testing
+
+```bash
+ctest -C Release                          # all tests
+ctest -C Release -R "specific_test_name" # single test
+```
+
+Python tests live in `Testing/`. C++ tests are registered via CTest in each module's CMakeLists.
+
+## Linting & Formatting
+
+```bash
+pre-commit run --all-files    # run all checks
+ruff check --fix .            # Python auto-fix
+clang-format -i <file>.cpp   # format a C++ file
+```
+
+Config files: `.ruff.toml` (Python, line length 320), `.clang-format` (C++17, Mozilla/LLVM style, col limit 180), `.pre-commit-config.yaml`.
+
+## Commit Message Format
+
+CI enforces a prefix on every commit:
+```
+BUG: Fix crash when loading DICOM
+ENH: Add STL export option
+COMP: Fix Windows build error
+STYLE: Format code
+DOC: Update README
+```
+
+## Architecture
+
+The core data flow for the MVP workflow:
+
+```
+DICOM Files → DICOMLib/DICOMPlugins (Python) → MRML scene (vtkMRMLScene)
+    → SegmentEditor module (UI) → vtkSegmentationCore (algorithms)
+    → STL Export
+```
+
+**Key layers:**
+
+| Layer | Location | Role |
+|---|---|---|
+| Data model | `Libs/MRML/Core/` | Scene graph (vtkMRMLScene, MRML nodes) |
+| Segmentation | `Libs/vtkSegmentationCore/` | Segmentation algorithms and data structures |
+| App GUI | `Base/QTGUI/` | Main window, module panel, toolbars |
+| DICOM workflow | `Modules/Scripted/DICOM*/` | DICOM import, database, plugins |
+| Segmentation UI | `Modules/Scripted/SegmentEditor/` | MVP-critical segmentation editor |
+| Loadable modules | `Modules/Loadable/` | Volumes, VolumeRendering, Segmentations, etc. |
+| External deps | `SuperBuild/` | VTK, ITK, Qt, Python, DCMTK build configs |
+| Build macros | `CMake/` | 100+ helper macros for Slicer's build system |
+
+**MVP-disabled features** (do not re-enable unless intentional): Extension Manager, Application Update, WebEngine, SimpleITK, SciPy, most CLI modules, Diffusion/DTI support.
+
+## MVP-Specific Customization
+
+The flag `-DSlicer_BUILD_WORKFLOW_MVP=ON` controls:
+- UI hiding logic in `Base/QTGUI/`
+- Module filtering (which loadable/scripted modules compile)
+- Default module selection on startup
+
+When adding a new module, check `CMakeLists.txt` in `Modules/Loadable/` or `Modules/Scripted/` for the `Slicer_BUILD_WORKFLOW_MVP` guard pattern used by existing modules.
+
+## Development Setup
+
+```bash
+./Utilities/SetupForDevelopment.sh   # configures git hooks, rebase-on-pull
+```
