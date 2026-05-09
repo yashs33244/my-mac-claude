@@ -1,5 +1,5 @@
 {
-  "numStartups": 17,
+  "numStartups": 18,
   "hasSeenTasksHint": true,
   "tipsHistory": {
     "new-user-warmup": 9,
@@ -16,9 +16,9 @@
     "install-github-app": 15,
     "install-slack-app": 16,
     "drag-and-drop-images": 17,
-    "paste-images-mac": 7,
-    "double-esc-code-restore": 7,
-    "continue": 7,
+    "paste-images-mac": 17,
+    "double-esc-code-restore": 18,
+    "continue": 18,
     "shift-tab": 7,
     "image-paste": 7,
     "custom-agents": 7,
@@ -35,7 +35,7 @@
     "default-permission-mode-config": 12,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 39,
+  "promptQueueUseCount": 40,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_pewter_lantern": false,
@@ -815,7 +815,44 @@
       "hasClaudeMdExternalIncludesWarningShown": false,
       "exampleFiles": [],
       "lastGracefulShutdown": false,
-      "hasCompletedProjectOnboarding": true
+      "hasCompletedProjectOnboarding": true,
+      "lastCost": 0,
+      "lastAPIDuration": 0,
+      "lastAPIDurationWithoutRetries": 0,
+      "lastToolDuration": 0,
+      "lastDuration": 6329,
+      "lastLinesAdded": 0,
+      "lastLinesRemoved": 0,
+      "lastTotalInputTokens": 0,
+      "lastTotalOutputTokens": 0,
+      "lastTotalCacheCreationInputTokens": 0,
+      "lastTotalCacheReadInputTokens": 0,
+      "lastTotalWebSearchRequests": 0,
+      "lastModelUsage": {},
+      "lastSessionId": "8a07a0ee-b366-4776-8f4f-21621c609671",
+      "lastSessionMetrics": {
+        "frame_duration_ms_count": 36776,
+        "frame_duration_ms_min": 0.04750000004423782,
+        "frame_duration_ms_max": 1657.886708999984,
+        "frame_duration_ms_avg": 2.320514382586407,
+        "frame_duration_ms_p50": 1.5261454997817054,
+        "frame_duration_ms_p95": 5.448037449549882,
+        "frame_duration_ms_p99": 14.352338749878097,
+        "pre_tool_hook_duration_ms_count": 217,
+        "pre_tool_hook_duration_ms_min": 0,
+        "pre_tool_hook_duration_ms_max": 6,
+        "pre_tool_hook_duration_ms_avg": 0.19815668202764977,
+        "pre_tool_hook_duration_ms_p50": 0,
+        "pre_tool_hook_duration_ms_p95": 1,
+        "pre_tool_hook_duration_ms_p99": 3.680000000000007,
+        "hook_duration_ms_count": 146,
+        "hook_duration_ms_min": 0,
+        "hook_duration_ms_max": 4848,
+        "hook_duration_ms_avg": 33.61643835616438,
+        "hook_duration_ms_p50": 0,
+        "hook_duration_ms_p95": 1.75,
+        "hook_duration_ms_p99": 7.550000000000011
+      }
     }
   },
   "opusProMigrationComplete": true,
@@ -873,7 +910,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1778133560841
+      "timestamp": 1778139343980
     }
   },
   "closedIssuesLastChecked": 1778087927037,
