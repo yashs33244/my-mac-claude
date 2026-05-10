@@ -22,7 +22,7 @@
     "shift-tab": 18,
     "image-paste": 7,
     "custom-agents": 22,
-    "agent-flag": 7,
+    "agent-flag": 22,
     "desktop-app": 8,
     "desktop-shortcut": 8,
     "web-app": 8,
@@ -32,10 +32,10 @@
     "permissions": 21,
     "rename-conversation": 12,
     "custom-commands": 12,
-    "default-permission-mode-config": 12,
+    "default-permission-mode-config": 22,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 66,
+  "promptQueueUseCount": 72,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_amber_sentinel": true,
@@ -930,7 +930,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1778346606247
+      "timestamp": 1778391664186
     }
   },
   "closedIssuesLastChecked": 1778342917879,
