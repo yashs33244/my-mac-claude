@@ -1,0 +1,528 @@
+"""Extend batch_7_ready.xlsx to ~500 entries and enrich via Apollo."""
+import openpyxl, requests, os, re, time, glob
+from dotenv import load_dotenv
+
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '.env'))
+APOLLO_API_KEY = os.getenv("APOLLO_API_KEY")
+XLSX_PATH = os.path.join(os.path.dirname(__file__), "batch_7_ready.xlsx")
+SUBJECT = "Software Engineer — Yash Singh (Full-Stack + AI, SDE at Binocs Bangalore)"
+RESUME  = "https://drive.google.com/file/d/117KGPqnxCYgZ-tvHkL65yx9cbG3jv5AZ/view?usp=drivesdk"
+
+TARGET_TITLES = [
+    "Engineering Manager","Technical Lead","Tech Lead","Head of Engineering",
+    "VP Engineering","CTO","Founder","Co-Founder",
+    "Talent Acquisition","HR Manager","Human Resources","Recruiter",
+]
+GENERIC_PREFIXES = ("careers@","info@","hr@","jobs@","hiring@","team@",
+                    "contact@","hello@","apply@","admin@","support@")
+
+# ── 400 new companies (role, fit, type) ──────────────────────────────────────
+NEW_COMPANIES = [
+    # Indian Fintech
+    ("BharatPe",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("INDmoney",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Jar",                 "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Fisdom",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Zerodha",             "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("AngelOne",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("5paisa",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Fyers",               "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Ditto Insurance",     "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Coverfox",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("RenewBuy",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("PolicyBazaar",        "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("True Balance",        "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("MoneyTap",            "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Axio",                "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("FlexiLoans",          "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Oxyzo",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Progcap",             "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("WazirX",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Fampay",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Zaggle",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Open Financial",      "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Perfios",             "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Zeta",                "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Jumbotail",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Finbox",              "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Stashfin",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Incred",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("KreditBee",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Indian Edtech
+    ("LEAD School",         "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Teachmint",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Extramarks",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Testbook",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Doubtnut",            "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("PrepLadder",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("GrowthSchool",        "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Masai School",        "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("iNeuron",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Coding Ninjas",       "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Prepleaf",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Indian Healthtech
+    ("HealthPlix",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("5C Network",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("ekincare",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Onsurity",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Nova Benefits",       "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Portea Medical",      "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Medibuddy",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Haber",               "Backend / DevOps Engineer",          "New Funded Startup", "Startup"),
+    ("Dozee",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Niramai",             "Full-Stack / ML Engineer",           "New Funded Startup", "Startup"),
+    # Indian B2B SaaS
+    ("Whatfix",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Leadsquared",         "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Netcore Cloud",       "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Hiver",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Ozonetel",            "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Kaleyra",             "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Gupshup",             "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Yellow.ai",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Haptik",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Uniphore",            "Full-Stack / AI Engineer",           "New Funded Startup", "Startup"),
+    ("Observe.AI",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Skit.ai",             "Full-Stack / AI Engineer",           "New Funded Startup", "Startup"),
+    ("Kissflow",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Postman",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Helpshift",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Springworks",         "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Cutshort",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Instahyre",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Belong.co",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Apna",                "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Unstop",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Naukri",              "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Internshala",         "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Zimyo",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Keka HR",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("sumHR",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Kredily",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("RazorpayX",           "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Cashfree",            "Backend / Full-Stack Engineer",      "New Funded Startup", "Startup"),
+    # Indian Logistics/Commerce
+    ("Delhivery",           "Full-Stack / DevOps Engineer",       "New Funded Startup", "Startup"),
+    ("Shiprocket",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("GoKwik",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Clickpost",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Vinculum",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("FarEye",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Ware IQ",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("NimbusPost",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Indian D2C/E-commerce
+    ("boAt",                "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Noise",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Mamaearth",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Purplle",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Nykaa",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Snapdeal",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Bewakoof",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Country Delight",     "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Bigbasket",           "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("JioMart",             "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    # Proptech/Real Estate
+    ("NoBroker",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Housing.com",         "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Magicbricks",         "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Stanza Living",       "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Colive",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Squadstack",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("NestAway",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Travel/Hospitality
+    ("MakeMyTrip",          "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Ixigo",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("EaseMyTrip",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("RateGain",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Cleartrip",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("OYO",                 "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("StayVista",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Gaming/Entertainment
+    ("Dream11",             "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("WinZO",               "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Junglee Games",       "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("GamesKraft",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("nCore Games",         "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # EV/Mobility
+    ("Ather Energy",        "Full-Stack / DevOps Engineer",       "New Funded Startup", "Startup"),
+    ("Yulu",                "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Zoomcar",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Bounce",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Indian AI Startups
+    ("Sarvam AI",           "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Krutrim",             "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Neysa",               "AI / DevOps Engineer",               "New Funded Startup", "Startup"),
+    ("Gnani.ai",            "AI / Backend Engineer",              "New Funded Startup", "Startup"),
+    ("CoRover AI",          "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Reverie",             "AI / Backend Engineer",              "New Funded Startup", "Startup"),
+    ("iMerit",              "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Mihup",               "AI / Backend Engineer",              "New Funded Startup", "Startup"),
+    ("Entropik Tech",       "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Mad Street Den",      "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Uncanny Vision",      "AI / Backend Engineer",              "New Funded Startup", "Startup"),
+    ("Flutura",             "AI / Backend Engineer",              "New Funded Startup", "Startup"),
+    ("Niki.ai",             "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Mindtickle",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Whatfix",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Oliva",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Voicezen",            "AI / Backend Engineer",              "New Funded Startup", "Startup"),
+    ("Onsurity",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Space/Deep Tech
+    ("Agnikul Cosmos",      "DevOps / Backend Engineer",          "New Funded Startup", "Startup"),
+    ("Dhruva Space",        "DevOps / Backend Engineer",          "New Funded Startup", "Startup"),
+    ("Bellatrix Aerospace", "Backend / DevOps Engineer",          "New Funded Startup", "Startup"),
+    # Global MNCs - Semiconductor/Hardware (India R&D)
+    ("Qualcomm India",      "SRE / DevOps Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Samsung R&D India",   "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Ericsson India",      "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Nokia India",         "DevOps / Backend Engineer",          "MNC / Tech Company",  "MNC"),
+    ("Synopsys India",      "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Cadence India",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Ansys India",         "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Autodesk India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Siemens India",       "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Bosch India",         "DevOps / Backend Engineer",          "MNC / Tech Company",  "MNC"),
+    ("ABB India",           "DevOps / Backend Engineer",          "MNC / Tech Company",  "MNC"),
+    ("GE Digital India",    "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Rockwell Automation", "DevOps / Backend Engineer",          "MNC / Tech Company",  "MNC"),
+    ("Keysight India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    # Global Enterprise SaaS (India offices)
+    ("ServiceNow India",    "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Workday India",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("SAP India",           "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Informatica India",   "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Citrix India",        "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("NetSuite India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Zendesk India",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("HubSpot India",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Intercom India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Atlassian India",     "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("GitLab India",        "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("JFrog India",         "DevOps / Full-Stack Engineer",       "MNC / Tech Company",  "MNC"),
+    ("SonarSource India",   "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("CircleCI",            "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Figma India",         "Frontend / Full-Stack Engineer",     "MNC / Tech Company",  "MNC"),
+    ("Miro India",          "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Notion India",        "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Monday.com India",    "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("ClickUp",             "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Asana India",         "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Amplitude India",     "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Mixpanel India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Segment India",       "Backend Engineer",                   "MNC / Tech Company",  "MNC"),
+    ("Brex India",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Rippling India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Deel India",          "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Remote.com India",    "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Gusto India",         "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Lattice India",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Carta India",         "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("AngelList India",     "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Sequoia India",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    # Developer-focused global companies
+    ("Loom India",          "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Calendly India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Airtable India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Typeform India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Zapier India",        "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Make.com India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Tines India",         "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Airplane.dev",        "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Pipedream India",     "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Cybersecurity/Zero Trust
+    ("Illumio India",       "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Styra",               "DevOps / Backend Engineer",          "New Funded Startup", "Startup"),
+    ("Permit.io",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Oso",                 "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Panther Labs",        "DevOps / Backend Engineer",          "New Funded Startup", "Startup"),
+    ("Vanta",               "Full-Stack / DevOps Engineer",       "New Funded Startup", "Startup"),
+    ("Drata",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Tugboat Logic",       "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Sprinto",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Scrut Automation",    "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Hyperproof",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Data Engineering
+    ("Dagster",             "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Prefect",             "Full-Stack / DevOps Engineer",       "New Funded Startup", "Startup"),
+    ("Temporal",            "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Inngest",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Resend",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Stytch",              "Backend / Full-Stack Engineer",      "New Funded Startup", "Startup"),
+    ("WorkOS",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Clerk",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Auth0 India",         "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Okta India",          "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Ping Identity",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    # Observability/FinOps
+    ("OpenCost",            "DevOps / Backend Engineer",          "New Funded Startup", "Startup"),
+    ("Kubecost",            "DevOps / SRE Engineer",              "New Funded Startup", "Startup"),
+    ("Infracost",           "DevOps / Full-Stack Engineer",       "New Funded Startup", "Startup"),
+    ("CloudZero",           "DevOps / Full-Stack Engineer",       "New Funded Startup", "Startup"),
+    ("Apptio India",        "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Densify",             "DevOps / Backend Engineer",          "New Funded Startup", "Startup"),
+    ("Spot.io",             "DevOps / Full-Stack Engineer",       "New Funded Startup", "Startup"),
+    ("Cast AI",             "DevOps / Backend Engineer",          "New Funded Startup", "Startup"),
+    ("StormForge",          "DevOps / SRE Engineer",              "New Funded Startup", "Startup"),
+    # Database / API
+    ("Nile Database",       "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Xata",                "Backend / Full-Stack Engineer",      "New Funded Startup", "Startup"),
+    ("Fauna India",         "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Upstash",             "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("QStash",              "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Momento",             "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Dragonfly",           "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("KeyDB",               "Backend Engineer",                   "New Funded Startup", "Startup"),
+    ("Weaviate",            "Backend / AI Engineer",              "New Funded Startup", "Startup"),
+    ("Qdrant India",        "Backend / AI Engineer",              "New Funded Startup", "Startup"),
+    ("Pinecone India",      "Backend / AI Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Chroma",              "Backend / AI Engineer",              "New Funded Startup", "Startup"),
+    ("LanceDB",             "Backend / AI Engineer",              "New Funded Startup", "Startup"),
+    ("Turbopuffer",         "Backend Engineer",                   "New Funded Startup", "Startup"),
+    # AI Developer Tools
+    ("LangChain India",     "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("LlamaIndex",          "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Dust.tt",             "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Wordware",            "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Dify.ai",             "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Flowise",             "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Relevance AI",        "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Cohere India",        "AI / Backend Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Mistral India",       "AI / Backend Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Groq India",          "AI / DevOps Engineer",               "MNC / Tech Company",  "MNC"),
+    ("Perplexity India",    "AI / Full-Stack Engineer",           "MNC / Tech Company",  "MNC"),
+    ("Cursor India",        "AI / Full-Stack Engineer",           "MNC / Tech Company",  "MNC"),
+    ("Windsurf India",      "AI / Full-Stack Engineer",           "MNC / Tech Company",  "MNC"),
+    ("Tabnine India",       "AI / Full-Stack Engineer",           "MNC / Tech Company",  "MNC"),
+    ("Continue.dev",        "AI / Full-Stack Engineer",           "New Funded Startup", "Startup"),
+    ("Pieces.app",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Mintlify",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Readme.com India",    "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("GitBook India",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    # Finops/Cloud Native India
+    ("Powerplay",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Vyapar",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Zoho Books",          "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Tally Solutions",     "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("ClearTax",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Quicko",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("TaxBuddy",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Razorpay",            "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Digio",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("SignDesk",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Leegality",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # AgriTech
+    ("Ninjacart",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Stellapps",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Cropin",              "Full-Stack / AI Engineer",           "New Funded Startup", "Startup"),
+    ("DeHaat",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Gramophone",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("AgroStar",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("BigHaat",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Samunnati",           "Backend Engineer",                   "New Funded Startup", "Startup"),
+    # HR/Payroll SaaS
+    ("Razorpay",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Darwinbox",           "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Multiplier",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Skuad",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Leapsome",            "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Engageplus",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # CleanTech/Climate
+    ("Avaana Capital",      "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Varaha",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Climes",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Sprih",               "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("CarbonMint",          "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Zelish",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Clensta",             "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Oorjan",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("SolarSquare",         "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    # Misc high-paying product cos
+    ("Meesho",              "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Porter",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Rapido",              "Full-Stack Engineer",                "New Funded Startup", "Startup"),
+    ("Swiggy",              "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Zomato",              "Full-Stack / Backend Engineer",      "New Funded Startup", "Startup"),
+    ("Flipkart",            "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Myntra",              "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Ajio",                "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Tata Digital",        "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Jio Platforms",       "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Reliance Jio",        "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Tata Consultancy",    "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Wipro Digital",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("IBM India",           "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("VMware India",        "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Red Hat India",       "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Nutanix India",       "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Cisco India",         "DevOps / SRE Engineer",              "MNC / Tech Company",  "MNC"),
+    ("Intel India",         "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("AMD India",           "Backend / DevOps Engineer",          "MNC / Tech Company",  "MNC"),
+    ("NVIDIA India",        "Full-Stack / AI Engineer",           "MNC / Tech Company",  "MNC"),
+    ("Uber India",          "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Airbnb India",        "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("LinkedIn India",      "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Twitter/X India",     "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Spotify India",       "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Netflix India",       "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("PayPal India",        "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Visa India",          "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Mastercard India",    "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("American Express",    "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Goldman Sachs India", "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("JPMorgan India",      "Full-Stack / Backend Engineer",      "MNC / Tech Company",  "MNC"),
+    ("Morgan Stanley India","Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Deutsche Bank India", "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("UBS India",           "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("BNY Mellon India",    "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("State Street India",  "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Fidelity India",      "Full-Stack / DevOps Engineer",       "MNC / Tech Company",  "MNC"),
+    ("Charles Schwab India","Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Citi India",          "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("HSBC India",          "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+    ("Standard Chartered",  "Full-Stack Engineer",                "MNC / Tech Company",  "MNC"),
+]
+
+def make_cover(company):
+    return f"""Hi {company} Team,
+
+TL;DR  I love building. I'm not great at pretending I have a million hobbies. I like taking something from 0 -> 1 (or 1 ->100) and being heads-down chasing that goal.
+
+I'm reaching out because I'm genuinely excited about the opportunity to work with {company}. I am highly flexible across DevOps, frontend, and backend engineering, and I believe {company} is one of the best places to explore and contribute across all these domains in a single environment.
+
+I enjoy building real systems end-to-end whether that means infrastructure, deployment, backend services, or user-facing products. My experience has consistently involved shipping production-ready solutions, solving engineering problems, and taking ownership across the full development lifecycle.
+
+That builder mindset is what drives me as an engineer. I'm excited by environments where I can learn fast, contribute broadly, and create meaningful impact through execution.
+
+I would love the opportunity to contribute my skills, adaptability, and energy to {company}.
+
+Best regards,
+Yash Singh
++91 8755-765-125
+{RESUME}"""
+
+def is_generic_email(email):
+    if not email: return True
+    return any(email.lower().startswith(p) for p in GENERIC_PREFIXES)
+
+def name_similarity(a, b):
+    noise = {'inc','ltd','llc','pvt','private','limited','technologies','technology',
+             'solutions','services','labs','ai','co','the','india','digital','group'}
+    def tok(s): return set(re.sub(r'[^a-z0-9 ]','',s.lower()).split()) - noise
+    at, bt = tok(a), tok(b)
+    if not at or not bt: return 0
+    return len(at & bt) / max(len(at), len(bt))
+
+def title_priority(title):
+    if not title: return 99
+    tl = title.lower()
+    order = ["engineering manager","head of engineering","vp engineering","technical lead",
+             "tech lead","cto","co-founder","founder","talent acquisition","hr manager",
+             "human resources","recruiter"]
+    for i, t in enumerate(order):
+        if t in tl: return i
+    return 99
+
+def search_apollo(company_name):
+    hdrs = {'Cache-Control':'no-cache','Content-Type':'application/json','X-Api-Key':APOLLO_API_KEY}
+    for payload in [
+        {"q_organization_name": company_name, "person_titles": TARGET_TITLES, "page":1, "per_page":25},
+        {"q_organization_name": company_name, "page":1, "per_page":25},
+    ]:
+        res = requests.post("https://api.apollo.io/v1/mixed_people/api_search", headers=hdrs, json=payload)
+        if res.status_code != 200: return None
+        people = res.json().get('people', [])
+        if not people: continue
+        scored = [(name_similarity(company_name, (p.get('organization') or {}).get('name','')),
+                   title_priority(p.get('title','')), p) for p in people]
+        candidates = [(s,t,p) for s,t,p in scored if s >= 0.4]
+        if not candidates:
+            best_sim = max(s for s,_,_ in scored)
+            if best_sim > 0: candidates = [(s,t,p) for s,t,p in scored if s == best_sim]
+        if not candidates: continue
+        candidates.sort(key=lambda x: (-x[0], x[1]))
+        mr = requests.post("https://api.apollo.io/v1/people/match", headers=hdrs,
+                           json={"id": candidates[0][2]['id']})
+        if mr.status_code != 200: continue
+        person = mr.json().get('person', {})
+        email = person.get('email')
+        if not email or is_generic_email(email): continue
+        return {"name": person.get('name'), "first_name": person.get('first_name'),
+                "title": person.get('title'), "email": email}
+    return None
+
+def load_all_existing():
+    existing = set()
+    for f in glob.glob(os.path.join(os.path.dirname(__file__), "batch_*.xlsx")):
+        try:
+            wb = openpyxl.load_workbook(f)
+            ws = wb.active
+            for r in range(2, ws.max_row+1):
+                v = ws.cell(r,1).value
+                if v: existing.add(v.strip().lower())
+        except Exception:
+            pass
+    return existing
+
+def main():
+    existing = load_all_existing()
+    print(f"Existing entries across all batches: {len(existing)}")
+
+    wb = openpyxl.load_workbook(XLSX_PATH)
+    ws = wb.active
+
+    # Deduplicate against everything already in batch_7 and prior batches
+    filtered = []
+    seen = set()
+    for company, role, fit, ctype in NEW_COMPANIES:
+        key = company.strip().lower()
+        if key in existing or key in seen:
+            continue
+        seen.add(key)
+        filtered.append((company, role, fit, ctype))
+
+    print(f"New companies to add (after dedup): {len(filtered)}")
+    start_row = ws.max_row + 1
+
+    for company, role, fit, ctype in filtered:
+        ws.append([company, None, 'India', role, '0-2 years', None,
+                   fit, ctype, SUBJECT, make_cover(company), 'NEW', None, None])
+
+    wb.save(XLSX_PATH)
+    print(f"Skeleton saved. Total rows now: {ws.max_row - 1}. Starting Apollo enrichment...\n")
+
+    total_new = ws.max_row - start_row + 1
+    enriched = 0
+
+    for r in range(start_row, ws.max_row + 1):
+        company = ws.cell(r, 1).value
+        idx = r - start_row + 1
+        print(f"[{idx}/{total_new}] {company}")
+
+        contact = search_apollo(company)
+        if contact:
+            ws.cell(r, 6).value  = contact['email']
+            ws.cell(r, 12).value = contact['name']
+            ws.cell(r, 13).value = contact['title']
+            enriched += 1
+            print(f"  ✓ {contact['name']} ({contact['title']}) — {contact['email']}")
+            cl = ws.cell(r, 10).value
+            if cl and contact['first_name']:
+                ws.cell(r, 10).value = re.sub(r'^Hi .+?,', f"Hi {contact['first_name']},", cl, count=1)
+        else:
+            print(f"  ✗ No personal email found")
+
+        if idx % 5 == 0:
+            wb.save(XLSX_PATH)
+            print(f"  — saved ({idx}/{total_new}) —")
+
+        time.sleep(1.2)
+
+    wb.save(XLSX_PATH)
+    print(f"\nDone. Added: {total_new} | Enriched: {enriched} | Failed: {total_new - enriched}")
+    print(f"Batch 7 total rows: {ws.max_row - 1}")
+
+if __name__ == "__main__":
+    if not APOLLO_API_KEY:
+        print("ERROR: APOLLO_API_KEY not found")
+    else:
+        main()
