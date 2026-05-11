@@ -1,0 +1,114 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches:
+      - main
+      - design
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Build Windows EXE
+    runs-on: windows-2022
+    timeout-minutes: 360
+
+    steps:
+      - name: Free Disk Space (Windows)
+        run: |
+          Get-PSDrive
+          # Remove large unnecessary components
+          rm -Recurse -Force "C:\Program Files\Android" -ErrorAction SilentlyContinue
+          rm -Recurse -Force "C:\Program Files (x86)\Android" -ErrorAction SilentlyContinue
+          rm -Recurse -Force "C:\hostedtoolcache\windows\CodeQL" -ErrorAction SilentlyContinue
+          rm -Recurse -Force "C:\hostedtoolcache\windows\Ruby" -ErrorAction SilentlyContinue
+          rm -Recurse -Force "C:\hostedtoolcache\windows\Go" -ErrorAction SilentlyContinue
+          Get-PSDrive
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: S
+
+      # MSVC + Ninja can exceed Win32 CreateProcess limits when paths repeat
+      # (GitHub Actions default workspace is deep). SUBST yields short W:\ paths
+      # embedded in VTK/Slicer ninja rules alongside CMAKE_NINJA_FORCE_RESPONSE_FILE.
+      - name: Map short workspace drive
+        shell: pwsh
+        run: |
+          subst W: $env:GITHUB_WORKSPACE
+
+      - name: Setup short TEMP path
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path W:\T -Force
+          "TEMP=W:\T" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "TMP=W:\T"  | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: "5.15.2"
+          arch: "win64_msvc2019_64"
+          modules: "qtcharts qtwebengine"
+
+      - name: Debug Environment
+        run: |
+          dir env:
+          echo "Qt5_Dir is: $env:Qt5_Dir"
+
+      - name: Install Ninja
+        run: choco install ninja
+
+      - name: Configure SuperBuild
+        run: |
+          cmake -G Ninja -S W:\S -B W:\B `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DSlicer_BUILD_WORKFLOW_MVP=ON `
+            -DSlicer_SUPERBUILD=ON `
+            -DSlicer_USE_SYSTEM_QT:BOOL=ON `
+            -DCMAKE_NINJA_FORCE_RESPONSE_FILE:BOOL=ON `
+            -DSlicer_SKIP_ROOT_DIR_MAX_LENGTH_CHECK:BOOL=ON `
+            -DSlicer_BUILD_BRAINSTOOLS:BOOL=OFF `
+            -DSlicer_BUILD_MultiVolumeExplorer:BOOL=OFF `
+            -DSlicer_BUILD_MultiVolumeImporter:BOOL=OFF `
+            -DSlicer_BUILD_CompareVolumes:BOOL=OFF `
+            -DSlicer_BUILD_LandmarkRegistration:BOOL=OFF `
+            -DSlicer_BUILD_SurfaceToolbox:BOOL=OFF `
+            -DSlicer_BUILD_SimpleFilters:BOOL=OFF `
+            -DSlicer_USE_SimpleITK:BOOL=OFF `
+            -DSlicer_USE_SCIPY:BOOL=OFF `
+            -DQt5_DIR="$env:Qt5_Dir"
+
+      - name: Build SuperBuild
+        run: cmake --build W:\B --parallel $env:NUMBER_OF_PROCESSORS
+
+      - name: Build package (EXE)
+        run: |
+          cmake --build W:\B\Slicer-build --target package --parallel $env:NUMBER_OF_PROCESSORS
+
+      - name: Find Installer
+        id: find-installer
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -Path W:\B\Slicer-build -Filter "Slicer-*.exe" | Select-Object -First 1
+          if ($installer) {
+            echo "path=$($installer.FullName)" >> $env:GITHUB_OUTPUT
+            echo "name=$($installer.Name)" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Error "Installer not found"
+            exit 1
+          }
+
+      - name: Upload EXE artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.find-installer.outputs.name }}
+          path: ${{ steps.find-installer.outputs.path }}
+          retention-days: 7
