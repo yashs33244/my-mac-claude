@@ -1,18 +1,18 @@
 {
-  "numStartups": 23,
+  "numStartups": 24,
   "hasSeenTasksHint": true,
   "tipsHistory": {
     "new-user-warmup": 9,
     "plan-mode-for-complex-tasks": 9,
     "terminal-setup": 23,
-    "color-when-multi-clauding": 14,
+    "color-when-multi-clauding": 24,
     "memory-command": 19,
-    "theme-command": 4,
+    "theme-command": 24,
     "status-line": 4,
     "prompt-queue": 5,
     "enter-to-steer-in-relatime": 5,
     "todo-list": 5,
-    "ide-upsell-external-terminal": 13,
+    "ide-upsell-external-terminal": 24,
     "install-github-app": 15,
     "install-slack-app": 16,
     "drag-and-drop-images": 17,
@@ -35,7 +35,7 @@
     "default-permission-mode-config": 22,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 87,
+  "promptQueueUseCount": 88,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_kairos_push_notifications": true,
@@ -881,6 +881,27 @@
       "lastTotalWebSearchRequests": 0,
       "lastModelUsage": {},
       "lastSessionId": "fa48ec7d-8621-4b0a-8be7-b2263232db1f"
+    },
+    "/Users/tanishqsingh/Desktop/yash desktop files/madhav-binocs/new-slicer": {
+      "allowedTools": [],
+      "mcpContextUris": [],
+      "mcpServers": {},
+      "enabledMcpjsonServers": [],
+      "disabledMcpjsonServers": [],
+      "hasTrustDialogAccepted": true,
+      "projectOnboardingSeenCount": 0,
+      "hasClaudeMdExternalIncludesApproved": false,
+      "hasClaudeMdExternalIncludesWarningShown": false,
+      "lastGracefulShutdown": false,
+      "exampleFiles": [
+        "vtkMRMLSliceLogic.cxx",
+        "External_CTK.cmake",
+        "vtkMRMLScene.cxx",
+        "SuperBuild.cmake",
+        "qMRMLSegmentEditorWidget.cxx"
+      ],
+      "exampleFilesGeneratedAt": 1778515978468,
+      "hasCompletedProjectOnboarding": true
     }
   },
   "opusProMigrationComplete": true,
@@ -903,13 +924,16 @@
     ],
     "yashs33244/outreach": [
       "/Users/tanishqsingh/Desktop/yash desktop files/outreach-yash/outreach"
+    ],
+    "yashs33244/new-slicer": [
+      "/Users/tanishqsingh/Desktop/yash desktop files/madhav-binocs/new-slicer"
     ]
   },
   "lastReleaseNotesSeen": "2.1.119",
   "groveConfigCache": {
     "e0deb797-24dd-4e8d-b69b-a302382d5490": {
       "grove_enabled": true,
-      "timestamp": 1778342917801
+      "timestamp": 1778515978084
     }
   },
   "penguinModeOrgEnabled": false,
@@ -925,7 +949,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1778481409003
+      "timestamp": 1778515978520
     }
   },
   "closedIssuesLastChecked": 1778479392884,
@@ -998,5 +1022,8 @@
     "organizationRole": "admin",
     "workspaceRole": null,
     "organizationName": "yashs33244@gmail.com's Organization"
+  },
+  "feedbackSurveyState": {
+    "lastShownTime": 1778516586697
   }
 }
