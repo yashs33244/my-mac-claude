@@ -35,7 +35,7 @@
     "default-permission-mode-config": 22,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 78,
+  "promptQueueUseCount": 82,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_amber_sentinel": true,
@@ -914,7 +914,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1778391664186
+      "timestamp": 1778481409003
     }
   },
   "closedIssuesLastChecked": 1778479392884,
