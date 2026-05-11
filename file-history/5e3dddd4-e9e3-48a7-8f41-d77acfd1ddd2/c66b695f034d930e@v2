@@ -1,0 +1,79 @@
+"""
+1. Fix LinkedIn URL in all cover letters -> full https:// version
+2. Mark already-sent emails (from Gmail screenshot) as SENT + green fill
+"""
+import openpyxl
+from openpyxl.styles import PatternFill, Font
+
+XLSX = "/Users/tanishqsingh/Desktop/yash desktop files/outreach-yash/outreach/indian_startup_outreach/external_batch_8.xlsx"
+
+GREEN_FILL = PatternFill("solid", fgColor="C6EFCE")
+GREEN_FONT = Font(color="276221")
+
+# Partial email prefixes visible in the screenshot (Gmail truncates them)
+ALREADY_SENT_PREFIXES = [
+    "amiit.avaas",
+    "ambrish.kan",
+    "amar.sinha",
+    "amandeep.k",
+    "aman.khan",
+    "alwyn.barre",
+    "alok.kumar",
+    "alok.singh",
+    "allwyn.r",
+    "albino",
+    "akshata.bha",
+    "akriti",
+    "akram.moham",
+    "akhila",
+    "akhil",
+]
+
+# All variants that may exist across rows
+OLD_LI_VARIANTS = [
+    "linkedin.com/in/yashs33244",
+    "linkedin.com/in/yash-singh-2757aa1b4/",
+    "linkedin.com/in/yash-singh-2757aa1b4",
+]
+NEW_LI = "https://www.linkedin.com/in/yash-singh-2757aa1b4/"
+
+wb = openpyxl.load_workbook(XLSX)
+ws = wb.active
+headers = [ws.cell(1, c).value for c in range(1, ws.max_column + 1)]
+
+email_idx  = headers.index("email") + 1
+cl_idx     = headers.index("cover_letter") + 1
+status_idx = headers.index("status") + 1
+
+li_patched = 0
+marked_sent = 0
+
+for r in range(2, ws.max_row + 1):
+    email = (ws.cell(r, email_idx).value or "").lower()
+    cl    = ws.cell(r, cl_idx).value or ""
+
+    # 1. Fix LinkedIn URL — replace any old variant with full https:// URL
+    if NEW_LI not in cl:
+        new_cl = cl
+        for old in OLD_LI_VARIANTS:
+            if old in new_cl:
+                new_cl = new_cl.replace(old, NEW_LI)
+        if new_cl != cl:
+            ws.cell(r, cl_idx).value = new_cl
+            li_patched += 1
+
+    # 2. Mark as SENT if email matches screenshot prefixes
+    if ws.cell(r, status_idx).value != "SENT":
+        for prefix in ALREADY_SENT_PREFIXES:
+            if email.startswith(prefix.lower()):
+                ws.cell(r, status_idx).value = "SENT"
+                for c in range(1, ws.max_column + 1):
+                    ws.cell(r, c).fill = GREEN_FILL
+                    ws.cell(r, c).font = GREEN_FONT
+                marked_sent += 1
+                print(f"  Marked SENT: {email}")
+                break
+
+wb.save(XLSX)
+print(f"\nLinkedIn URL patched in {li_patched} rows")
+print(f"Marked {marked_sent} rows as SENT (from screenshot)")
