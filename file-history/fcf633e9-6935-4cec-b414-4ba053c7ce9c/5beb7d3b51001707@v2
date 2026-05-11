@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# preview.sh — launch Slicer for UI preview with live stylesheet hot reload
+#
+# First run: downloads + extracts Slicer.app automatically (~200MB)
+# Every run after: just opens the app instantly
+#
+# Usage:
+#   ./preview.sh              # open Slicer
+#   ./preview.sh --watch      # open Slicer + watch dev.qss for live style changes
+
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP="$REPO_DIR/Slicer.app"
+DMG_SEARCH=(
+  "$HOME/Downloads/Slicer-*.dmg"
+  "$HOME/Desktop/Slicer-*.dmg"
+  "/tmp/Slicer-*.dmg"
+)
+WATCH=0
+
+for arg in "$@"; do
+  [[ "$arg" == "--watch" ]] && WATCH=1
+done
+
+# ── Step 1: get the .app ─────────────────────────────────────────────────────
+if [[ ! -d "$APP" ]]; then
+  echo "Slicer.app not found — looking for a local DMG..."
+
+  DMG=""
+  for pattern in "${DMG_SEARCH[@]}"; do
+    for f in $pattern; do
+      [[ -f "$f" ]] && DMG="$f" && break 2
+    done
+  done
+
+  if [[ -z "$DMG" ]]; then
+    echo "No local DMG found. Downloading latest Slicer nightly for macOS arm64..."
+    DMG="/tmp/Slicer-nightly.dmg"
+    curl -L --progress-bar \
+      "https://slicer-packages.kitware.com/api/v1/item/66e38cde3a72c2c2eb37d5a6/download" \
+      -o "$DMG" \
+      || { echo "❌ Download failed. Download manually from https://download.slicer.org"; exit 1; }
+  fi
+
+  echo "Extracting from: $DMG"
+  MOUNT_VOL=$(hdiutil attach "$DMG" -nobrowse -noautoopen 2>/dev/null \
+    | grep "/Volumes/" | awk '{print $NF}')
+  cp -r "$MOUNT_VOL/Slicer.app" "$APP"
+  hdiutil detach "$MOUNT_VOL" -quiet 2>/dev/null || true
+
+  echo "Removing quarantine + signing..."
+  xattr -cr "$APP"
+  codesign --force --deep --sign - "$APP" 2>/dev/null || true
+  echo "✅ Slicer.app ready"
+fi
+
+# ── Step 2: prepare dev.qss for hot reload ───────────────────────────────────
+DEV_QSS="$REPO_DIR/dev.qss"
+if [[ ! -f "$DEV_QSS" ]]; then
+  cat > "$DEV_QSS" <<'CSS'
+/* dev.qss — live stylesheet hot reload
+   Edit this file and save → changes appear in Slicer instantly.
+   Example: change the background colour below and save. */
+
+QMainWindow {
+    background: #F8FAFC;
+}
+CSS
+fi
+
+# ── Step 3: launch ───────────────────────────────────────────────────────────
+echo ""
+echo "🚀 Launching Slicer..."
+if [[ "$WATCH" == "1" ]] || command -v fswatch &>/dev/null; then
+  echo "🎨 Live stylesheet: edit dev.qss and save to see changes instantly"
+  SLICER_DEV_STYLESHEET="$DEV_QSS" open "$APP"
+else
+  open "$APP"
+fi
+
+echo ""
+echo "Slicer is open."
+echo ""
+echo "To enable live stylesheet editing:"
+echo "  1. Open dev.qss in your editor"
+echo "  2. Make changes and save"
+echo "  3. Changes appear in Slicer instantly (no restart)"
