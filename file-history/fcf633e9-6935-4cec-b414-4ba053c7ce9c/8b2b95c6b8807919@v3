@@ -1,0 +1,103 @@
+name: CI (Build macOS DMG)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    name: Build macOS DMG
+    runs-on: macos-14 # Apple Silicon (arm64)
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/local/share/dotnet
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+
+      - name: Install CMake and Ninja
+        run: brew install cmake ninja
+
+      - name: Install Qt (with WebEngine)
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: "5.15.2"
+          host: "mac"
+          target: "desktop"
+          arch: "clang_64"
+          modules: "qtcharts qtwebengine"
+
+      - name: Cache SuperBuild dependencies
+        uses: actions/cache@v4
+        with:
+          path: build/superbuild-cache
+          key: superbuild-macos-arm64-${{ hashFiles('SuperBuild/External_*.cmake', 'CMakeLists.txt') }}
+          restore-keys: |
+            superbuild-macos-arm64-
+
+      - name: Configure SuperBuild
+        run: |
+          cmake -G Ninja -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DSlicer_BUILD_WORKFLOW_MVP=ON \
+            -DSlicer_SUPERBUILD=ON \
+            -DSlicer_USE_SYSTEM_QT:BOOL=ON \
+            -DQt5_DIR="${Qt5_Dir}" \
+            -DSlicer_BUILD_BRAINSTOOLS:BOOL=OFF \
+            -DSlicer_BUILD_MultiVolumeExplorer:BOOL=OFF \
+            -DSlicer_BUILD_MultiVolumeImporter:BOOL=OFF \
+            -DSlicer_BUILD_CompareVolumes:BOOL=OFF \
+            -DSlicer_BUILD_LandmarkRegistration:BOOL=OFF \
+            -DSlicer_BUILD_SurfaceToolbox:BOOL=OFF \
+            -DSlicer_BUILD_SimpleFilters:BOOL=OFF \
+            -DSlicer_USE_SimpleITK:BOOL=OFF \
+            -DSlicer_USE_SCIPY:BOOL=OFF
+
+      - name: Build SuperBuild
+        run: cmake --build build --parallel $(sysctl -n hw.ncpu)
+
+      - name: Build package (DMG)
+        run: |
+          rm -rf build/Slicer-build/_CPack_Packages
+          cmake --build build/Slicer-build --target package --parallel $(sysctl -n hw.ncpu)
+
+      - name: Ad-hoc codesign app bundle
+        # Gatekeeper blocks downloaded binaries that have no signature at all.
+        # Ad-hoc signing ("-") satisfies the "must have a signature" requirement
+        # without needing a paid Apple Developer certificate.
+        run: |
+          DMG=$(ls build/Slicer-build/Slicer-*.dmg | head -1)
+          MOUNT_DIR=$(mktemp -d)
+          hdiutil attach "$DMG" -mountpoint "$MOUNT_DIR" -nobrowse -quiet
+          APP=$(ls -d "$MOUNT_DIR"/*.app | head -1)
+          find "$APP" -type f \( -name "*.dylib" -o -name "*.so" \) | while read f; do
+            codesign --force --sign - "$f" 2>/dev/null || true
+          done
+          codesign --force --deep --sign - "$APP"
+          hdiutil detach "$MOUNT_DIR" -quiet
+          xattr -d com.apple.quarantine "$DMG" 2>/dev/null || true
+
+      - name: Find DMG
+        id: find-dmg
+        run: |
+          DMG=$(ls build/Slicer-build/Slicer-*.dmg | head -1)
+          echo "path=$DMG" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename $DMG)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload DMG artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.find-dmg.outputs.name }}
+          path: ${{ steps.find-dmg.outputs.path }}
+          retention-days: 7
