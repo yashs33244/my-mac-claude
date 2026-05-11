@@ -1,0 +1,55 @@
+# Akamai — Eyal
+**To:** eyal@akamai.com *(confirm email)*
+**Subject:** Software Engineer — Yash Singh (Full-Stack + AI Engineer)
+
+---
+
+Hi Eyal,
+
+TL;DR: I love building. I'm not great at pretending I have a million hobbies. I like taking something from 0 to 1 (or 1 to 100) and being heads-down chasing that goal. I'm actively looking for my next role and Akamai is at the top of my list.
+
+I've been following what you're building: the Fermyon acquisition bringing WebAssembly serverless to the edge, and the Inference Cloud putting vLLM and KServe across 4,400+ locations. That's not incremental CDN work. That's a serious infrastructure bet, and it's exactly the kind of problem I want to be close to.
+
+I'm a final-year CS undergrad (graduating July 2026) and currently an SDE at an agentic AI startup (AI-powered due diligence for PE, investment banks, and strategy consulting teams). I've shipped production systems end-to-end: React/Next.js frontends, Node/Python backends, LLM orchestration pipelines, Docker, CI/CD. The stack Akamai is building on (Kubernetes, Python inference services, edge compute) maps directly to what I work in daily.
+
+What I'd bring to Akamai:
+
+- I'm highly adaptable across DevOps, backend, frontend, and AI infra
+- I've built at the intersection of AI and real-world systems, not just toy demos
+- I move fast, take ownership, and don't need hand-holding to ship
+
+I'm not looking for a job to coast. I want somewhere I can compound fast and build things that matter. Akamai feels like that place.
+
+Would love 20 minutes, or even just a nudge toward the right person.
+
+Best,
+Yash Singh
++91 8755-765-125
+Resume: https://drive.google.com/file/d/117KGPqnxCYgZ-tvHkL65yx9cbG3jv5AZ/view?usp=drivesdk
+GitHub: github.com/yashs33244 | LinkedIn: linkedin.com/in/yashs33244
+
+---
+
+## Research Notes
+
+### Why Akamai (specific hooks used)
+- **Fermyon acquisition (Dec 2025)** — edge-native WebAssembly serverless, 75M RPS in production
+- **Inference Cloud (2026)** — vLLM + KServe + NVIDIA NIMs across 4,400 edge locations; first global-scale NVIDIA AI Grid implementation
+- **EdgeWorkers** — V8-based JavaScript/TypeScript serverless at the edge
+
+### Stack overlap
+| Akamai Stack | Yash's Experience |
+|---|---|
+| Python (inference services) | Python at Binocs |
+| Node.js (EdgeWorkers, Functions) | Node.js full-stack |
+| Kubernetes (LKE) | Docker, CI/CD |
+| vLLM / KServe | LLM integrations |
+| React (frontend tooling) | React / Next.js |
+
+### Open roles (as of May 2026)
+- Search: jobs.akamai.com → "Software Engineer"
+- Emerging Talent program: akamai.com/careers/students-and-recent-graduates
+- 52+ open roles across all levels
+
+### Alternative contacts at Akamai India (if Eyal unreachable)
+- Search LinkedIn: "Engineering Manager Akamai India" or "Talent Acquisition Akamai"
