@@ -4,7 +4,7 @@
   "tipsHistory": {
     "new-user-warmup": 9,
     "plan-mode-for-complex-tasks": 9,
-    "terminal-setup": 13,
+    "terminal-setup": 23,
     "color-when-multi-clauding": 14,
     "memory-command": 19,
     "theme-command": 4,
@@ -35,7 +35,7 @@
     "default-permission-mode-config": 22,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 75,
+  "promptQueueUseCount": 81,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_amber_sentinel": true,
@@ -914,7 +914,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1778391664186
+      "timestamp": 1778481409003
     }
   },
   "closedIssuesLastChecked": 1778479392884,
