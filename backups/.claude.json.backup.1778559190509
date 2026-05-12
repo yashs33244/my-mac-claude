@@ -35,7 +35,7 @@
     "default-permission-mode-config": 22,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 96,
+  "promptQueueUseCount": 99,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_scratch": false,
@@ -951,7 +951,7 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1778520271782
+      "timestamp": 1778558908339
     }
   },
   "closedIssuesLastChecked": 1778479392884,
