@@ -35,7 +35,7 @@
     "default-permission-mode-config": 22,
     "frontend-design-plugin": 17
   },
-  "promptQueueUseCount": 100,
+  "promptQueueUseCount": 105,
   "btwUseCount": 2,
   "cachedGrowthBookFeatures": {
     "tengu_scratch": false,
@@ -951,10 +951,10 @@
         "amount_minor_units": null,
         "currency": null
       },
-      "timestamp": 1778558908339
+      "timestamp": 1778575538185
     }
   },
-  "closedIssuesLastChecked": 1778479392884,
+  "closedIssuesLastChecked": 1778575538972,
   "cachedExtraUsageDisabledReason": "org_level_disabled",
   "claudeAiMcpEverConnected": [
     "claude.ai Google Drive",
