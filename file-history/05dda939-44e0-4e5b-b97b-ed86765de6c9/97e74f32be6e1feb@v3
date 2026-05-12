@@ -1,0 +1,19 @@
+APP_ENV=development
+SECRET_KEY=dev-secret-change-in-prod-minimum-32-chars!
+DATABASE_URL=postgresql+asyncpg://outreach:outreach@localhost:5432/outreach_db
+CORS_ORIGINS=["http://localhost:3000","http://localhost:3001"]
+
+# LLM
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+OPENROUTER_API_KEY=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
+DEFAULT_LLM_PROVIDER=openrouter
+DEFAULT_LLM_MODEL=google/gemma-4-31b-it:free
+
+# Google OAuth - fill in from Google Cloud Console
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://localhost:8000/api/v1/auth/google/callback
+
+# Apollo
+APOLLO_API_KEY=

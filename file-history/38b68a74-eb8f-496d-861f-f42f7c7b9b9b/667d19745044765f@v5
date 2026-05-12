@@ -1,0 +1,264 @@
+name: CI (Build)
+
+on:
+  # Triggers the workflow on push or pull request events
+  push:
+    branches:
+      - "main"
+      - "develop"
+      - "feature-*"
+  pull_request:
+    branches:
+      - "*"
+  # Allows running this workflow manually from the Actions tab
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Shared filter logic is duplicated across jobs because GitHub Actions does not
+# support cross-job step reuse without a dedicated job + needs: dependency.
+# ─────────────────────────────────────────────────────────────────────────────
+
+jobs:
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Linux — uses the pre-built slicer/slicer-base Docker image (fastest path)
+  # ───────────────────────────────────────────────────────────────────────────
+  build-slicer-linux:
+    name: Build Slicer (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: "Filter Paths"
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: changes
+        with:
+          filters: |
+            paths-to-include:
+              - ".github/actions/slicer-build/**"
+              - "Applications/**"
+              - "Base/**"
+              - "CMake/**"
+              - "Extensions/**"
+              - "Libs/**"
+              - "Modules/**"
+              - "Resources/**"
+              - "Testing/**"
+              - "CMakeLists.txt"
+
+      - name: "Detect SuperBuild Changes"
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        id: superbuild-changes
+        with:
+          files: |
+            SuperBuild/External_*
+          base_sha: main
+
+      - name: "List Changed SuperBuild Files"
+        if: steps.superbuild-changes.outputs.any_changed == 'true'
+        shell: bash
+        run: |
+          echo "Changed files:"
+          for file in ${ALL_CHANGED_FILES}; do
+            echo " $file"
+          done
+        env:
+          ALL_CHANGED_FILES: ${{ steps.superbuild-changes.outputs.all_changed_files }}
+
+      - name: "Check Prerequisites"
+        id: check-prereqisities
+        shell: bash
+        run: |
+          if [[ $SUPERBUILD_CHANGED == "true" ]]; then
+            echo "::warning ::Skipping Slicer build due to changes in SuperBuild files relative to 'main' branch."
+          fi
+        env:
+          SUPERBUILD_CHANGED: ${{ steps.superbuild-changes.outputs.any_changed }}
+
+      - name: "Build Slicer"
+        id: slicer-build
+        if: ${{ steps.changes.outputs.paths-to-include == 'true' && steps.superbuild-changes.outputs.any_changed == 'false' }}
+        uses: ./.github/actions/slicer-build
+
+      - name: "Upload Slicer package (Linux)"
+        if: ${{ steps.slicer-build.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: slicer-package-linux
+          path: ${{ github.workspace }}/${{ steps.slicer-build.outputs.package }}
+          retention-days: 7
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # macOS — native SuperBuild with Qt6 from Homebrew
+  # Note: first run compiles all deps (~3-4 h); subsequent runs use the cache.
+  # ───────────────────────────────────────────────────────────────────────────
+  build-slicer-macos:
+    name: Build Slicer (macOS)
+    runs-on: macos-14  # Apple Silicon (M1); use macos-13 for Intel
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: "Filter Paths"
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: changes
+        with:
+          filters: |
+            paths-to-include:
+              - "Applications/**"
+              - "Base/**"
+              - "CMake/**"
+              - "Extensions/**"
+              - "Libs/**"
+              - "Modules/**"
+              - "Resources/**"
+              - "Testing/**"
+              - "CMakeLists.txt"
+              - "SuperBuild/**"
+
+      - name: "Detect SuperBuild Changes"
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        id: superbuild-changes
+        with:
+          files: |
+            SuperBuild/External_*
+          base_sha: main
+
+      - name: "Install build dependencies"
+        if: steps.changes.outputs.paths-to-include == 'true'
+        run: |
+          brew install cmake ninja
+          brew install qt@6
+          echo "Qt6_DIR=$(brew --prefix qt@6)/lib/cmake/Qt6" >> $GITHUB_ENV
+
+      - name: "Cache SuperBuild dependencies"
+        if: steps.changes.outputs.paths-to-include == 'true'
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        id: sb-cache
+        with:
+          path: ${{ runner.temp }}/SB-build
+          key: macos14-sb-${{ hashFiles('SuperBuild/External_*.cmake', 'CMake/ExternalProject*.cmake') }}
+          restore-keys: |
+            macos14-sb-
+
+      - name: "Configure SuperBuild"
+        if: steps.changes.outputs.paths-to-include == 'true' && steps.sb-cache.outputs.cache-hit != 'true'
+        run: |
+          cmake -S "$GITHUB_WORKSPACE" \
+                -B "$RUNNER_TEMP/SB-build" \
+                -GNinja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DQt6_DIR="$Qt6_DIR" \
+                -DSlicer_RELEASE_TYPE=Experimental
+
+      - name: "Build Slicer"
+        if: steps.changes.outputs.paths-to-include == 'true' && steps.superbuild-changes.outputs.any_changed == 'false'
+        run: |
+          cmake --build "$RUNNER_TEMP/SB-build" --parallel $(sysctl -n hw.ncpu)
+
+      - name: "Package (DMG)"
+        if: steps.changes.outputs.paths-to-include == 'true' && steps.superbuild-changes.outputs.any_changed == 'false'
+        run: |
+          cd "$RUNNER_TEMP/SB-build"
+          cpack --config Slicer-build/CPackConfig.cmake -G DragNDrop
+
+      - name: "Upload Slicer package (macOS)"
+        if: steps.changes.outputs.paths-to-include == 'true' && steps.superbuild-changes.outputs.any_changed == 'false'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: slicer-package-macos
+          path: ${{ runner.temp }}/SB-build/*.dmg
+          retention-days: 7
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # Windows — native SuperBuild with Qt6 via jurplel/install-qt-action
+  # Note: first run compiles all deps (~4-5 h); subsequent runs use the cache.
+  # ───────────────────────────────────────────────────────────────────────────
+  build-slicer-windows:
+    name: Build Slicer (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: "Filter Paths"
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: changes
+        with:
+          filters: |
+            paths-to-include:
+              - "Applications/**"
+              - "Base/**"
+              - "CMake/**"
+              - "Extensions/**"
+              - "Libs/**"
+              - "Modules/**"
+              - "Resources/**"
+              - "Testing/**"
+              - "CMakeLists.txt"
+              - "SuperBuild/**"
+
+      - name: "Detect SuperBuild Changes"
+        uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
+        id: superbuild-changes
+        with:
+          files: |
+            SuperBuild/External_*
+          base_sha: main
+
+      - name: "Install Qt6"
+        if: steps.changes.outputs.paths-to-include == 'true'
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.5.*'
+          arch: win64_msvc2019_64
+          cache: true
+
+      - name: "Cache SuperBuild dependencies"
+        if: steps.changes.outputs.paths-to-include == 'true'
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        id: sb-cache
+        with:
+          path: ${{ runner.temp }}\SB-build
+          key: windows-sb-${{ hashFiles('SuperBuild/External_*.cmake', 'CMake/ExternalProject*.cmake') }}
+          restore-keys: |
+            windows-sb-
+
+      - name: "Configure SuperBuild"
+        if: steps.changes.outputs.paths-to-include == 'true' && steps.sb-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          cmake -S "$env:GITHUB_WORKSPACE" `
+                -B "$env:RUNNER_TEMP\SB-build" `
+                -G "Visual Studio 17 2022" -A x64 `
+                -DCMAKE_BUILD_TYPE=Release `
+                -DQt6_DIR="$env:Qt6_DIR" `
+                -DSlicer_RELEASE_TYPE=Experimental
+
+      - name: "Build Slicer"
+        if: steps.changes.outputs.paths-to-include == 'true' && steps.superbuild-changes.outputs.any_changed == 'false'
+        shell: pwsh
+        run: |
+          cmake --build "$env:RUNNER_TEMP\SB-build" --config Release --parallel
+
+      - name: "Package (NSIS installer)"
+        if: steps.changes.outputs.paths-to-include == 'true' && steps.superbuild-changes.outputs.any_changed == 'false'
+        shell: pwsh
+        run: |
+          cd "$env:RUNNER_TEMP\SB-build"
+          cpack --config Slicer-build\CPackConfig.cmake -G NSIS
+
+      - name: "Upload Slicer package (Windows)"
+        if: steps.changes.outputs.paths-to-include == 'true' && steps.superbuild-changes.outputs.any_changed == 'false'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: slicer-package-windows
+          path: ${{ runner.temp }}\SB-build\*.exe
+          retention-days: 7
