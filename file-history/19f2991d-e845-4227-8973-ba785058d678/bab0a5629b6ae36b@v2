@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# gbrain wrapper — uses local clone to avoid zod/v4 global install bug
-exec /Users/tanishqsingh/.bun/bin/bun run /Users/tanishqsingh/.gbrain-src/src/cli.ts "$@"

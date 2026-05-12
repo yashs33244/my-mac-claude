@@ -1,7 +1,0 @@
-# Render.com credentials — NEVER commit this file
-RENDER_API_KEY=rnd_rr1YOvQyjlfz1ZW4P0sYLjVxaMMe
-
-# gbrain Render deployment (fill in after first deploy)
-GBRAIN_PUBLIC_URL=
-GBRAIN_ACCESS_TOKEN=
-GBRAIN_DATABASE_URL=

@@ -19,6 +19,20 @@ plugins/
 # Secrets — NEVER commit
 secrets/
 
+# Session / conversation data — NEVER commit (contains private chat transcripts)
+sessions/
+history.jsonl
+projects/
+file-history/
+shell-snapshots/
+session-env/
+gbrain/
+cache/
+statsig/
+image-cache/
+claude.json
+backups/
+
 # Truly temporary / ephemeral files
 paste-cache/
 *.swp

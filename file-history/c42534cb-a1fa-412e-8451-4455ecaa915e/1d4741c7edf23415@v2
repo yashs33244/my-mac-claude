@@ -1,7 +1,0 @@
-# Render.com credentials — NEVER commit this file
-RENDER_API_KEY=rnd_rr1YOvQyjlfz1ZW4P0sYLjVxaMMe
-
-# gbrain Render deployment (fill in after first deploy)
-GBRAIN_PUBLIC_URL=https://gbrain-757w.onrender.com
-GBRAIN_ACCESS_TOKEN=
-GBRAIN_DATABASE_URL=postgresql://gbrain_db_user:DioEKOt2zKg3TQS5dvsPy6CCZ8tQ3d6d@dpg-d7spk2sm0tmc73ddk0fg-a.oregon-postgres.render.com:5432/gbrain_db
